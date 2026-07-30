@@ -5,7 +5,8 @@ import '../theme/app_theme.dart';
 
 class PartnerCard extends StatelessWidget {
   final Partner partner;
-  const PartnerCard({super.key, required this.partner});
+  final String? distanceLabel;
+  const PartnerCard({super.key, required this.partner, this.distanceLabel});
 
   @override
   Widget build(BuildContext context) {
@@ -41,12 +42,27 @@ class PartnerCard extends StatelessWidget {
                           fontWeight: FontWeight.w500),
                     ),
                     const SizedBox(height: 4),
-                    Text(
-                      '${partner.adresse}, ${partner.plz} ${partner.ort}',
-                      style: const TextStyle(
-                          color: AppColors.grey, fontSize: 13),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            '${partner.adresse}, ${partner.plz} ${partner.ort}',
+                            style: const TextStyle(color: AppColors.grey, fontSize: 13),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        if (distanceLabel != null) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            distanceLabel!,
+                            style: const TextStyle(
+                                color: AppColors.orange,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500),
+                          ),
+                        ],
+                      ],
                     ),
                   ],
                 ),

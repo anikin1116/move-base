@@ -19,6 +19,11 @@ class PartnerService {
     });
   }
 
+  Future<List<Partner>> getAllPartners() async {
+    final snap = await _col.where('aktiv', isEqualTo: true).get();
+    return snap.docs.map(Partner.fromFirestore).toList();
+  }
+
   Future<Partner?> getPartner(String id) async {
     final doc = await _col.doc(id).get();
     if (!doc.exists) return null;

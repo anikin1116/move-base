@@ -59,7 +59,7 @@ class _DashboardContent extends StatelessWidget {
   final AuthService auth;
   const _DashboardContent({required this.partner, required this.auth});
 
-  Future<void> _openCheckout() async {
+  Future<void> _openCheckout(BuildContext context) async {
     final paket = partner.paket.isEmpty ? 'basic' : partner.paket;
     final uri = Uri.parse('$_apiBase/api/checkout').replace(queryParameters: {
       'paket': paket,
@@ -70,17 +70,29 @@ class _DashboardContent extends StatelessWidget {
       'quantity': '1',
       'lang': 'de',
     });
-    if (await canLaunchUrl(uri)) {
+    try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Link konnte nicht geöffnet werden.')),
+        );
+      }
     }
   }
 
-  Future<void> _openCustomerPortal() async {
+  Future<void> _openCustomerPortal(BuildContext context) async {
     final uri = Uri.parse('$_apiBase/api/customer-portal').replace(
       queryParameters: {'email': partner.email},
     );
-    if (await canLaunchUrl(uri)) {
+    try {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
+    } catch (_) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Link konnte nicht geöffnet werden.')),
+        );
+      }
     }
   }
 
@@ -129,7 +141,7 @@ class _DashboardContent extends StatelessWidget {
             subtitle: 'Schließen Sie Ihr CrashLog-Abo ab, um Ihr Profil zu aktivieren.',
             buttonLabel: 'Jetzt abschließen →',
             buttonColor: AppColors.orange,
-            onTap: _openCheckout,
+            onTap: () => _openCheckout(context),
           )
         else
           _ActionCard(
@@ -138,7 +150,7 @@ class _DashboardContent extends StatelessWidget {
             subtitle: 'Abo aktiv. Kündigung oder Änderung jederzeit möglich.',
             buttonLabel: 'Abo verwalten',
             buttonColor: AppColors.navy,
-            onTap: _openCustomerPortal,
+            onTap: () => _openCustomerPortal(context),
           ),
 
         const SizedBox(height: 24),
@@ -167,9 +179,7 @@ class _DashboardContent extends StatelessWidget {
           icon: const Icon(Icons.edit_outlined, color: AppColors.navy),
           label: const Text('Profil bearbeiten',
               style: TextStyle(color: AppColors.navy)),
-          onPressed: () {
-            // TODO: edit profile screen
-          },
+          onPressed: () => context.push('/edit-profile', extra: partner),
           style: OutlinedButton.styleFrom(
             side: const BorderSide(color: AppColors.navy),
             padding: const EdgeInsets.symmetric(vertical: 14),
