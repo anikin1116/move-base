@@ -77,14 +77,23 @@ class PartnerCard extends StatelessWidget {
 
   Widget _buildLogo() {
     if (partner.logo.isNotEmpty) {
-      return ClipRRect(
-        borderRadius: BorderRadius.circular(10),
-        child: Image.network(
-          partner.logo,
-          width: 60,
-          height: 60,
-          fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _initial(),
+      return Container(
+        width: 60,
+        height: 60,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(10),
+          child: Image.network(
+            partner.logo,
+            width: 60,
+            height: 60,
+            fit: BoxFit.contain,
+            errorBuilder: (_, __, ___) => _initial(),
+          ),
         ),
       );
     }

@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../models/partner.dart';
@@ -61,21 +63,33 @@ class _DashboardContent extends StatelessWidget {
 
   Future<void> _openCheckout(BuildContext context) async {
     final paket = partner.paket.isEmpty ? 'basic' : partner.paket;
-    final uri = Uri.parse('$_apiBase/api/checkout').replace(queryParameters: {
-      'paket': paket,
-      'billing': 'monthly',
-      'uid': auth.currentUser!.uid,
-      'email': partner.email,
-      'firmaName': partner.name,
-      'quantity': '1',
-      'lang': 'de',
-    });
     try {
-      await launchUrl(uri, mode: LaunchMode.externalApplication);
-    } catch (_) {
+      final response = await http.post(
+        Uri.parse('$_apiBase/api/checkout'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'paket': paket,
+          'billing': 'monthly',
+          'uid': auth.currentUser!.uid,
+          'email': partner.email,
+          'firmaName': partner.name,
+          'quantity': 1,
+          'lang': 'de',
+        }),
+      );
+      final data = jsonDecode(response.body) as Map<String, dynamic>;
+      final url = data['url'] as String?;
+      if (url != null) {
+        await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+      } else {
+        throw Exception(data['error'] ?? 'Unbekannter Fehler');
+      }
+    } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Link konnte nicht geöffnet werden.')),
+          SnackBar(
+              content: Text('Checkout fehlgeschlagen: $e'),
+              backgroundColor: Colors.red),
         );
       }
     }
