@@ -9,7 +9,7 @@ import '../../services/auth_service.dart';
 import '../../services/partner_service.dart';
 import '../../theme/app_theme.dart';
 
-const _apiBase = 'https://www.crashlog.eu';
+const _apiBase = 'https://crashlog.eu';
 
 class DashboardScreen extends StatelessWidget {
   const DashboardScreen({super.key});
