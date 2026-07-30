@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "910436040491",
+    "project_id": "unfallbericht-copy-uqwzlg",
+    "storage_bucket": "unfallbericht-copy-uqwzlg.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:910436040491:android:7d56d9779517afcbe6cf6e",
+        "android_client_info": {
+          "package_name": "com.mycompany.move_base"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCDas7YLt0_jCjPoD1vKOJfMP3wbvY_-ks"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:910436040491:android:434a1fe399d8c9bde6cf6e",
+        "android_client_info": {
+          "package_name": "com.mycompany.unfallbericht"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCDas7YLt0_jCjPoD1vKOJfMP3wbvY_-ks"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
