@@ -19,15 +19,12 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
-subprojects {
-    plugins.withId("com.android.library") {
-        extensions.configure<com.android.build.gradle.BaseExtension> {
-            compileSdkVersion(36)
-        }
-    }
-    plugins.withId("com.android.application") {
-        extensions.configure<com.android.build.gradle.BaseExtension> {
-            compileSdkVersion(36)
+gradle.projectsEvaluated {
+    subprojects {
+        val androidExt = extensions.findByName("android")
+            as? com.android.build.gradle.BaseExtension ?: return@subprojects
+        if (androidExt.compileSdkVersion?.removePrefix("android-")?.toIntOrNull() ?: 36 < 36) {
+            androidExt.compileSdkVersion(36)
         }
     }
 }
