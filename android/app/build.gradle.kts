@@ -1,9 +1,8 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
-    // START: FlutterFire Configuration
     id("com.google.gms.google-services")
-    // END: FlutterFire Configuration
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
@@ -18,10 +17,7 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.mycompany.move_base"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
@@ -30,14 +26,23 @@ android {
 
     signingConfigs {
         create("release") {
-            val keystoreProperties = java.util.Properties()
-            val keystoreFile = rootProject.file("key.properties")
-            if (keystoreFile.exists()) {
-                keystoreProperties.load(keystoreFile.inputStream())
-                keyAlias = keystoreProperties["keyAlias"] as String
-                keyPassword = keystoreProperties["keyPassword"] as String
-                storeFile = file(keystoreProperties["storeFile"] as String)
-                storePassword = keystoreProperties["storePassword"] as String
+            if (System.getenv("CM_KEYSTORE_PATH") != null) {
+                // Codemagic automatic signing
+                storeFile = file(System.getenv("CM_KEYSTORE_PATH")!!)
+                storePassword = System.getenv("CM_KEYSTORE_PASSWORD")!!
+                keyAlias = System.getenv("CM_KEY_ALIAS")!!
+                keyPassword = System.getenv("CM_KEY_PASSWORD")!!
+            } else {
+                // Local development
+                val keystoreFile = rootProject.file("key.properties")
+                if (keystoreFile.exists()) {
+                    val props = Properties()
+                    props.load(keystoreFile.inputStream())
+                    keyAlias = props["keyAlias"] as String
+                    keyPassword = props["keyPassword"] as String
+                    storeFile = file(props["storeFile"] as String)
+                    storePassword = props["storePassword"] as String
+                }
             }
         }
     }
