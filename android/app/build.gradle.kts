@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.mycompany.move_base"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 35
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
