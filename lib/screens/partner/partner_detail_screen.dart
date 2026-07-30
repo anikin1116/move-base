@@ -65,6 +65,20 @@ class _DetailView extends StatelessWidget {
                   const SizedBox(height: 20),
                   _buildActionButtons(),
                   const SizedBox(height: 20),
+                  if (partner.berater.isNotEmpty) ...[
+                    _sectionTitle('Ihr Berater'),
+                    Row(children: [
+                      const Icon(Icons.person_outline,
+                          size: 18, color: AppColors.grey),
+                      const SizedBox(width: 8),
+                      Text(partner.berater,
+                          style: const TextStyle(
+                              color: AppColors.navy,
+                              fontWeight: FontWeight.w500,
+                              fontSize: 15)),
+                    ]),
+                    const SizedBox(height: 20),
+                  ],
                   if (partner.oeffnungszeiten.isNotEmpty) ...[
                     _sectionTitle('Öffnungszeiten'),
                     Text(partner.oeffnungszeiten,

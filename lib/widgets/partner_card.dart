@@ -64,6 +64,19 @@ class PartnerCard extends StatelessWidget {
                         ],
                       ],
                     ),
+                    if (partner.berater.isNotEmpty &&
+                        (partner.kategorie == 'Versicherungsmakler' ||
+                            partner.kategorie == 'KFZ Sachverständiger')) ...[
+                      const SizedBox(height: 4),
+                      Row(children: [
+                        const Icon(Icons.person_outline,
+                            size: 13, color: AppColors.grey),
+                        const SizedBox(width: 4),
+                        Text(partner.berater,
+                            style: const TextStyle(
+                                color: AppColors.grey, fontSize: 12)),
+                      ]),
+                    ],
                   ],
                 ),
               ),
