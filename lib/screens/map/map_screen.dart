@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
 import 'package:latlong2/latlong.dart';
 import '../../generated/l10n/app_localizations.dart';
@@ -18,11 +19,39 @@ class MapScreen extends StatefulWidget {
 class _MapScreenState extends State<MapScreen> {
   final _mapController = MapController();
   Partner? _selected;
+  LatLng? _userPosition;
+
+  @override
+  void initState() {
+    super.initState();
+    _locateUser();
+  }
 
   @override
   void dispose() {
     _mapController.dispose();
     super.dispose();
+  }
+
+  Future<void> _locateUser() async {
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) return;
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+        ),
+      );
+      if (!mounted) return;
+      final latLng = LatLng(pos.latitude, pos.longitude);
+      setState(() => _userPosition = latLng);
+      _mapController.move(latLng, 11);
+    } catch (_) {}
   }
 
   @override
@@ -33,6 +62,13 @@ class _MapScreenState extends State<MapScreen> {
         title: Text(l10n.map),
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
+      ),
+      floatingActionButton: FloatingActionButton.small(
+        onPressed: _userPosition != null
+            ? () => _mapController.move(_userPosition!, 13)
+            : _locateUser,
+        backgroundColor: AppColors.navy,
+        child: const Icon(Icons.my_location, color: Colors.white),
       ),
       body: StreamBuilder<List<Partner>>(
         stream: PartnerService().getPartners(),
@@ -57,32 +93,55 @@ class _MapScreenState extends State<MapScreen> {
                     userAgentPackageName: 'com.mycompany.moveBase',
                   ),
                   MarkerLayer(
-                    markers: partners.map((p) {
-                      final isSelected = _selected?.id == p.id;
-                      return Marker(
-                        point: LatLng(p.lat!, p.lng!),
-                        width: isSelected ? 48 : 36,
-                        height: isSelected ? 48 : 36,
-                        child: GestureDetector(
-                          onTap: () {
-                            setState(() => _selected = p);
-                            _mapController.move(
-                              LatLng(p.lat!, p.lng!),
-                              _mapController.camera.zoom < 10
-                                  ? 12
-                                  : _mapController.camera.zoom,
-                            );
-                          },
-                          child: Icon(
-                            Icons.location_pin,
-                            color: isSelected
-                                ? AppColors.orange
-                                : AppColors.navy,
-                            size: isSelected ? 48 : 36,
+                    markers: [
+                      if (_userPosition != null)
+                        Marker(
+                          point: _userPosition!,
+                          width: 24,
+                          height: 24,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              color: Colors.blue,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                  color: Colors.white, width: 3),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.blue.withOpacity(0.4),
+                                  blurRadius: 8,
+                                  spreadRadius: 2,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
-                      );
-                    }).toList(),
+                      ...partners.map((p) {
+                        final isSelected = _selected?.id == p.id;
+                        return Marker(
+                          point: LatLng(p.lat!, p.lng!),
+                          width: isSelected ? 48 : 36,
+                          height: isSelected ? 48 : 36,
+                          child: GestureDetector(
+                            onTap: () {
+                              setState(() => _selected = p);
+                              _mapController.move(
+                                LatLng(p.lat!, p.lng!),
+                                _mapController.camera.zoom < 10
+                                    ? 12
+                                    : _mapController.camera.zoom,
+                              );
+                            },
+                            child: Icon(
+                              Icons.location_pin,
+                              color: isSelected
+                                  ? AppColors.orange
+                                  : AppColors.navy,
+                              size: isSelected ? 48 : 36,
+                            ),
+                          ),
+                        );
+                      }),
+                    ],
                   ),
                 ],
               ),
@@ -90,7 +149,7 @@ class _MapScreenState extends State<MapScreen> {
                 Positioned(
                   left: 16,
                   right: 16,
-                  bottom: 24,
+                  bottom: 80,
                   child: _PartnerPopup(
                     partner: _selected!,
                     onClose: () => setState(() => _selected = null),
