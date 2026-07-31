@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../generated/l10n/app_localizations.dart';
 import '../../models/partner.dart';
 import '../../services/auth_service.dart';
 import '../../services/partner_service.dart';
@@ -17,6 +18,7 @@ class DashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
+    final l10n = AppLocalizations.of(context);
     if (!auth.isLoggedIn) {
       WidgetsBinding.instance.addPostFrameCallback((_) => context.go('/'));
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -25,11 +27,11 @@ class DashboardScreen extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
-        title: const Text('Mein Dashboard'),
+        title: Text(l10n.myDashboard),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout),
-            tooltip: 'Abmelden',
+            tooltip: l10n.signOut,
             onPressed: () async {
               await auth.signOut();
               if (context.mounted) context.go('/');
@@ -45,9 +47,9 @@ class DashboardScreen extends StatelessWidget {
           }
           final partner = snapshot.data;
           if (partner == null) {
-            return const Center(
-                child: Text('Kein Partnerprofil gefunden.',
-                    style: TextStyle(color: AppColors.grey)));
+            return Center(
+                child: Text(l10n.noPartnerProfile,
+                    style: const TextStyle(color: AppColors.grey)));
           }
           return _DashboardContent(partner: partner, auth: auth);
         },
@@ -62,6 +64,7 @@ class _DashboardContent extends StatelessWidget {
   const _DashboardContent({required this.partner, required this.auth});
 
   Future<void> _openCheckout(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
     final paket = partner.paket.isEmpty ? 'basic' : partner.paket;
     try {
       final response = await http.post(
@@ -88,7 +91,7 @@ class _DashboardContent extends StatelessWidget {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-              content: Text('Checkout fehlgeschlagen: $e'),
+              content: Text('${l10n.checkoutFailed} $e'),
               backgroundColor: Colors.red),
         );
       }
@@ -96,6 +99,7 @@ class _DashboardContent extends StatelessWidget {
   }
 
   Future<void> _openCustomerPortal(BuildContext context) async {
+    final l10n = AppLocalizations.of(context);
     final uri = Uri.parse('$_apiBase/api/customer-portal').replace(
       queryParameters: {'email': partner.email},
     );
@@ -104,7 +108,7 @@ class _DashboardContent extends StatelessWidget {
     } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Link konnte nicht geöffnet werden.')),
+          SnackBar(content: Text(l10n.couldNotOpenLink)),
         );
       }
     }
@@ -112,6 +116,7 @@ class _DashboardContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return ListView(
       padding: const EdgeInsets.all(20),
       children: [
@@ -151,18 +156,18 @@ class _DashboardContent extends StatelessWidget {
         if (!partner.aktiv)
           _ActionCard(
             icon: Icons.payment,
-            title: 'Abo noch nicht aktiv',
-            subtitle: 'Schließen Sie Ihr CrashLog-Abo ab, um Ihr Profil zu aktivieren.',
-            buttonLabel: 'Jetzt abschließen →',
+            title: l10n.subscriptionNotActive,
+            subtitle: l10n.subscriptionActiveInfo,
+            buttonLabel: l10n.subscribeNow,
             buttonColor: AppColors.orange,
             onTap: () => _openCheckout(context),
           )
         else
           _ActionCard(
             icon: Icons.workspace_premium,
-            title: 'Paket: ${partner.paket.toUpperCase()}',
-            subtitle: 'Abo aktiv. Kündigung oder Änderung jederzeit möglich.',
-            buttonLabel: 'Abo verwalten',
+            title: '${l10n.packageLabel} ${partner.paket.toUpperCase()}',
+            subtitle: l10n.subscriptionActiveDesc,
+            buttonLabel: l10n.manageSubscription,
             buttonColor: AppColors.navy,
             onTap: () => _openCustomerPortal(context),
           ),
@@ -170,8 +175,8 @@ class _DashboardContent extends StatelessWidget {
         const SizedBox(height: 24),
 
         // Betriebsdaten
-        const Text('Betriebsdaten',
-            style: TextStyle(
+        Text(l10n.businessData,
+            style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
                 color: AppColors.navy)),
@@ -191,8 +196,8 @@ class _DashboardContent extends StatelessWidget {
 
         OutlinedButton.icon(
           icon: const Icon(Icons.edit_outlined, color: AppColors.navy),
-          label: const Text('Profil bearbeiten',
-              style: TextStyle(color: AppColors.navy)),
+          label: Text(l10n.editProfile,
+              style: const TextStyle(color: AppColors.navy)),
           onPressed: () => context.push('/edit-profile', extra: partner),
           style: OutlinedButton.styleFrom(
             side: const BorderSide(color: AppColors.navy),
@@ -200,6 +205,52 @@ class _DashboardContent extends StatelessWidget {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),
+
+        const SizedBox(height: 32),
+
+        // Website-Hinweis
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.grey.shade50,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: Colors.grey.shade200),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(children: [
+                const Icon(Icons.info_outline, size: 16, color: AppColors.grey),
+                const SizedBox(width: 8),
+                Text(l10n.accountManagement,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.navy,
+                        fontSize: 13)),
+              ]),
+              const SizedBox(height: 6),
+              Text(l10n.accountManagementNote,
+                  style: const TextStyle(color: AppColors.grey, fontSize: 13)),
+              const SizedBox(height: 10),
+              GestureDetector(
+                onTap: () => launchUrl(
+                  Uri.parse('https://crashlog.eu/portal/login'),
+                  mode: LaunchMode.externalApplication,
+                ),
+                child: Text(
+                  l10n.openWebsite,
+                  style: const TextStyle(
+                      color: AppColors.orange,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                      decoration: TextDecoration.underline),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: 24),
       ],
     );
   }
@@ -221,6 +272,7 @@ class _StatusBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
@@ -228,7 +280,7 @@ class _StatusBadge extends StatelessWidget {
         borderRadius: BorderRadius.circular(20),
       ),
       child: Text(
-        aktiv ? 'Aktiv' : 'Inaktiv',
+        aktiv ? l10n.statusActive : l10n.statusInactive,
         style: TextStyle(
           color: aktiv ? Colors.green.shade800 : Colors.red.shade800,
           fontWeight: FontWeight.bold,
@@ -274,9 +326,11 @@ class _ActionCard extends StatelessWidget {
           Row(children: [
             Icon(icon, color: buttonColor, size: 20),
             const SizedBox(width: 8),
-            Text(title,
-                style: const TextStyle(
-                    fontWeight: FontWeight.bold, color: AppColors.navy)),
+            Expanded(
+              child: Text(title,
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, color: AppColors.navy)),
+            ),
           ]),
           const SizedBox(height: 6),
           Text(subtitle, style: const TextStyle(color: AppColors.grey, fontSize: 13)),

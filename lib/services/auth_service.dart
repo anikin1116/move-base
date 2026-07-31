@@ -30,4 +30,11 @@ class AuthService extends ChangeNotifier {
     await _auth.signOut();
     notifyListeners();
   }
+
+  Future<void> reloadUser() async {
+    await _auth.currentUser?.reload();
+    notifyListeners();
+  }
+
+  bool get isEmailVerified => _auth.currentUser?.emailVerified ?? false;
 }

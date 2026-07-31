@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'generated/l10n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'theme/app_theme.dart';
 import 'services/auth_service.dart';
+import 'providers/locale_provider.dart';
 import 'screens/home/home_screen.dart';
 import 'screens/search/search_screen.dart';
 import 'screens/partner/partner_detail_screen.dart';
@@ -12,6 +15,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/dashboard/dashboard_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/dashboard/edit_profile_screen.dart';
+import 'screens/legal/legal_screen.dart';
 import 'models/partner.dart';
 
 void main() async {
@@ -43,6 +47,9 @@ final _router = GoRouter(
       builder: (_, state) =>
           EditProfileScreen(partner: state.extra as Partner),
     ),
+    GoRoute(path: '/agb', builder: (_, __) => const AgbScreen()),
+    GoRoute(path: '/datenschutz', builder: (_, __) => const DatenschutzScreen()),
+    GoRoute(path: '/impressum', builder: (_, __) => const ImpressumScreen()),
   ],
 );
 
@@ -51,13 +58,21 @@ class MoveBaseApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => AuthService(),
-      child: MaterialApp.router(
-        title: 'MoveBase',
-        theme: AppTheme.theme,
-        routerConfig: _router,
-        debugShowCheckedModeBanner: false,
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthService()),
+        ChangeNotifierProvider(create: (_) => LocaleProvider()),
+      ],
+      child: Consumer<LocaleProvider>(
+        builder: (_, localeProvider, __) => MaterialApp.router(
+          title: 'MoveBase',
+          theme: AppTheme.theme,
+          routerConfig: _router,
+          debugShowCheckedModeBanner: false,
+          locale: localeProvider.locale,
+          supportedLocales: const [Locale('de'), Locale('en')],
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+        ),
       ),
     );
   }

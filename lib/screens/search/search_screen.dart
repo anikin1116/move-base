@@ -2,9 +2,11 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:go_router/go_router.dart';
+import '../../generated/l10n/app_localizations.dart';
 import '../../theme/app_theme.dart';
 import '../../models/partner.dart';
 import '../../services/partner_service.dart';
+import '../../utils/category_utils.dart';
 import '../../widgets/partner_card.dart';
 
 // AT PLZ → Bundesland
@@ -31,6 +33,15 @@ const _atBundeslaender = [
 
 const _lands = ['AT', 'DE', 'CH'];
 
+String _localizedLand(AppLocalizations l10n, String code) {
+  switch (code) {
+    case 'AT': return l10n.austria;
+    case 'DE': return l10n.germany;
+    case 'CH': return l10n.switzerland;
+    default: return code;
+  }
+}
+
 class SearchScreen extends StatefulWidget {
   const SearchScreen({super.key});
 
@@ -48,7 +59,6 @@ class _SearchScreenState extends State<SearchScreen> {
   bool _loadingLocation = false;
   bool _loadingPartners = true;
 
-  // Filter state
   final Set<String> _filterKategorien = {};
   final Set<String> _filterLaender = {};
   final Set<String> _filterBundeslaender = {};
@@ -98,7 +108,6 @@ class _SearchScreenState extends State<SearchScreen> {
     final q = query.trim().toLowerCase();
 
     var list = _allPartners.where((p) {
-      // Text filter
       if (q.isNotEmpty) {
         final match = p.name.toLowerCase().contains(q) ||
             p.ort.toLowerCase().contains(q) ||
@@ -107,17 +116,14 @@ class _SearchScreenState extends State<SearchScreen> {
             p.kategorien.any((k) => k.toLowerCase().contains(q));
         if (!match) return false;
       }
-      // Land filter
       if (_filterLaender.isNotEmpty && !_filterLaender.contains(p.land)) {
         return false;
       }
-      // Kategorie filter
       if (_filterKategorien.isNotEmpty &&
           !_filterKategorien.contains(p.kategorie) &&
           !p.kategorien.any((k) => _filterKategorien.contains(k))) {
         return false;
       }
-      // Bundesland filter (AT only via PLZ)
       if (_filterBundeslaender.isNotEmpty) {
         final bl = _bundeslandFromPlz(p.plz, p.land);
         if (bl == null || !_filterBundeslaender.contains(bl)) return false;
@@ -177,15 +183,9 @@ class _SearchScreenState extends State<SearchScreen> {
         selectedBundeslaender: Set.from(_filterBundeslaender),
         onApply: (kat, land, bl) {
           setState(() {
-            _filterKategorien
-              ..clear()
-              ..addAll(kat);
-            _filterLaender
-              ..clear()
-              ..addAll(land);
-            _filterBundeslaender
-              ..clear()
-              ..addAll(bl);
+            _filterKategorien..clear()..addAll(kat);
+            _filterLaender..clear()..addAll(land);
+            _filterBundeslaender..clear()..addAll(bl);
           });
           _applyFilter(_controller.text);
         },
@@ -201,6 +201,7 @@ class _SearchScreenState extends State<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       appBar: AppBar(
         leading: BackButton(onPressed: () => context.pop()),
@@ -209,7 +210,7 @@ class _SearchScreenState extends State<SearchScreen> {
           autofocus: true,
           style: const TextStyle(color: Colors.white),
           decoration: InputDecoration(
-            hintText: 'Werkstatt, Ort, PLZ...',
+            hintText: l10n.searchHintSearch,
             hintStyle: const TextStyle(color: Colors.white54),
             border: InputBorder.none,
             filled: false,
@@ -235,7 +236,7 @@ class _SearchScreenState extends State<SearchScreen> {
             children: [
               IconButton(
                 icon: const Icon(Icons.tune),
-                tooltip: 'Filter',
+                tooltip: l10n.filterTitle,
                 onPressed: _openFilter,
               ),
               if (_activeFilterCount > 0)
@@ -276,9 +277,10 @@ class _SearchScreenState extends State<SearchScreen> {
                       children: [
                         const Icon(Icons.filter_list, size: 16, color: AppColors.grey),
                         const SizedBox(width: 6),
-                        Text('${_results.length} Ergebnisse',
-                            style: const TextStyle(
-                                color: AppColors.grey, fontSize: 13)),
+                        Text(
+                          l10n.filterResults(_results.length),
+                          style: const TextStyle(color: AppColors.grey, fontSize: 13),
+                        ),
                         const Spacer(),
                         TextButton(
                           onPressed: () {
@@ -289,8 +291,8 @@ class _SearchScreenState extends State<SearchScreen> {
                             });
                             _applyFilter(_controller.text);
                           },
-                          child: const Text('Filter zurücksetzen',
-                              style: TextStyle(
+                          child: Text(l10n.filterResetAll,
+                              style: const TextStyle(
                                   color: AppColors.orange, fontSize: 13)),
                         ),
                       ],
@@ -301,8 +303,8 @@ class _SearchScreenState extends State<SearchScreen> {
                       ? Center(
                           child: Text(
                             _controller.text.isEmpty && _activeFilterCount == 0
-                                ? 'Suchbegriff eingeben oder Filter wählen...'
-                                : 'Keine Betriebe gefunden.',
+                                ? l10n.enterSearchOrFilter
+                                : l10n.noBusinessesFound,
                             style: const TextStyle(color: AppColors.grey),
                             textAlign: TextAlign.center,
                           ),
@@ -361,8 +363,8 @@ class _FilterSheetState extends State<_FilterSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final showBundesland =
-        _laender.isEmpty || _laender.contains('AT');
+    final l10n = AppLocalizations.of(context);
+    final showBundesland = _laender.isEmpty || _laender.contains('AT');
 
     return DraggableScrollableSheet(
       expand: false,
@@ -385,8 +387,8 @@ class _FilterSheetState extends State<_FilterSheet> {
             ),
             const SizedBox(height: 16),
             Row(children: [
-              const Text('Filter',
-                  style: TextStyle(
+              Text(l10n.filterTitle,
+                  style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: AppColors.navy)),
@@ -397,21 +399,21 @@ class _FilterSheetState extends State<_FilterSheet> {
                   _laender.clear();
                   _bundeslaender.clear();
                 }),
-                child: const Text('Zurücksetzen',
-                    style: TextStyle(color: AppColors.orange)),
+                child: Text(l10n.filterReset,
+                    style: const TextStyle(color: AppColors.orange)),
               ),
             ]),
             Expanded(
               child: ListView(
                 controller: ctrl,
                 children: [
-                  _sectionLabel('Kategorie'),
+                  _sectionLabel(l10n.filterCategory),
                   Wrap(
                     spacing: 8,
                     runSpacing: 4,
                     children: kCategories
                         .map((k) => FilterChip(
-                              label: Text(k),
+                              label: Text(localizedCategory(l10n, k)),
                               selected: _kategorien.contains(k),
                               onSelected: (_) => _toggle(_kategorien, k),
                               selectedColor: AppColors.navy.withOpacity(0.15),
@@ -425,15 +427,15 @@ class _FilterSheetState extends State<_FilterSheet> {
                         .toList(),
                   ),
                   const SizedBox(height: 20),
-                  _sectionLabel('Land'),
+                  _sectionLabel(l10n.filterCountry),
                   Wrap(
                     spacing: 8,
                     children: _lands
-                        .map((l) => FilterChip(
-                              label: Text(l),
-                              selected: _laender.contains(l),
+                        .map((code) => FilterChip(
+                              label: Text(_localizedLand(l10n, code)),
+                              selected: _laender.contains(code),
                               onSelected: (_) {
-                                _toggle(_laender, l);
+                                _toggle(_laender, code);
                                 if (!_laender.contains('AT')) {
                                   setState(() => _bundeslaender.clear());
                                 }
@@ -441,7 +443,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                               selectedColor: AppColors.navy.withOpacity(0.15),
                               checkmarkColor: AppColors.navy,
                               labelStyle: TextStyle(
-                                color: _laender.contains(l)
+                                color: _laender.contains(code)
                                     ? AppColors.navy
                                     : AppColors.grey,
                               ),
@@ -450,7 +452,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                   ),
                   if (showBundesland) ...[
                     const SizedBox(height: 20),
-                    _sectionLabel('Bundesland (Österreich)'),
+                    _sectionLabel(l10n.filterState),
                     Wrap(
                       spacing: 8,
                       runSpacing: 4,
@@ -491,7 +493,7 @@ class _FilterSheetState extends State<_FilterSheet> {
                       shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(12)),
                     ),
-                    child: const Text('Anwenden'),
+                    child: Text(l10n.filterApply),
                   ),
                 ),
               ),

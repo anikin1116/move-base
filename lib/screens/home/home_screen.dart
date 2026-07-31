@@ -1,14 +1,19 @@
+import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:url_launcher/url_launcher.dart';
+import '../../generated/l10n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import '../../theme/app_theme.dart';
 import '../../services/auth_service.dart';
+import '../../providers/locale_provider.dart';
 import '../../models/partner.dart';
 import '../../services/partner_service.dart';
 import '../../widgets/partner_card.dart';
 import '../../widgets/category_chip.dart';
 import '../../utils/seed_data.dart';
+import '../../utils/category_utils.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -21,117 +26,270 @@ class _HomeScreenState extends State<HomeScreen> {
   final _partnerService = PartnerService();
   String? _selectedCategory;
 
-  void _openMenu(BuildContext context) {
-    final auth = context.read<AuthService>();
+  Future<void> _openCrashLog() async {
+    if (!kIsWeb && Platform.isAndroid) {
+      final appUri = Uri.parse(
+          'intent://#Intent;package=com.mycompany.unfallbericht;'
+          'action=android.intent.action.MAIN;'
+          'category=android.intent.category.LAUNCHER;end');
+      if (await canLaunchUrl(appUri)) {
+        await launchUrl(appUri);
+        return;
+      }
+      final market = Uri.parse('market://details?id=com.mycompany.unfallbericht');
+      if (!await launchUrl(market, mode: LaunchMode.externalApplication)) {
+        await launchUrl(
+          Uri.parse('https://play.google.com/store/apps/details?id=com.mycompany.unfallbericht'),
+          mode: LaunchMode.externalApplication,
+        );
+      }
+    } else {
+      await launchUrl(
+        Uri.parse('https://apps.apple.com/app/id19209005258'),
+        mode: LaunchMode.externalApplication,
+      );
+    }
+  }
+
+  void _openMenu() {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Center(
-                child: Container(
-                  width: 40,
-                  height: 4,
-                  decoration: BoxDecoration(
-                    color: Colors.grey.shade300,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              // Für Partnerbetriebe
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.navy.withOpacity(0.05),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(color: AppColors.navy.withOpacity(0.12)),
-                ),
+      builder: (sheetCtx) => Consumer2<AuthService, LocaleProvider>(
+        builder: (ctx, auth, lp, __) {
+          final l10n = AppLocalizations.of(ctx);
+          return SafeArea(
+            child: SingleChildScrollView(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
                 child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Padding(
-                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
-                      child: Row(children: [
-                        const Icon(Icons.business, size: 16, color: AppColors.navy),
-                        const SizedBox(width: 8),
-                        const Text(
-                          'Für Partnerbetriebe',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.navy,
-                            fontSize: 13,
-                          ),
+                    // drag handle
+                    Center(
+                      child: Container(
+                        width: 40,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(2),
                         ),
-                      ]),
+                      ),
                     ),
-                    if (!auth.isLoggedIn) ...[
-                      ListTile(
-                        leading: const Icon(Icons.login, color: AppColors.navy),
-                        title: const Text('Partner-Login'),
-                        subtitle: const Text('Für bereits registrierte Betriebe'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.push('/login');
-                        },
+                    const SizedBox(height: 20),
+
+                    // ── Für Partnerbetriebe ────────────────────────────────
+                    Container(
+                      decoration: BoxDecoration(
+                        color: AppColors.navy.withOpacity(0.05),
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: AppColors.navy.withOpacity(0.12)),
                       ),
-                      const Divider(height: 1, indent: 16, endIndent: 16),
-                      ListTile(
-                        leading: const Icon(Icons.app_registration, color: AppColors.orange),
-                        title: const Text('Als Partner registrieren'),
-                        subtitle: const Text('Jetzt Betrieb eintragen'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.push('/register');
-                        },
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                            child: Row(children: [
+                              const Icon(Icons.business, size: 16, color: AppColors.navy),
+                              const SizedBox(width: 8),
+                              Text(
+                                l10n.forPartners,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.navy,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ]),
+                          ),
+                          if (!auth.isLoggedIn) ...[
+                            ListTile(
+                              leading: const Icon(Icons.login, color: AppColors.navy),
+                              title: Text(l10n.partnerLoginTitle),
+                              subtitle: Text(l10n.partnerLoginSubtitle),
+                              onTap: () {
+                                Navigator.pop(sheetCtx);
+                                context.push('/login');
+                              },
+                            ),
+                            const Divider(height: 1, indent: 16, endIndent: 16),
+                            ListTile(
+                              leading: const Icon(Icons.app_registration, color: AppColors.orange),
+                              title: Text(l10n.registerAsPartner),
+                              subtitle: Text(l10n.registerSubtitle),
+                              onTap: () {
+                                Navigator.pop(sheetCtx);
+                                context.push('/register');
+                              },
+                            ),
+                          ] else ...[
+                            ListTile(
+                              leading: const Icon(Icons.dashboard_outlined, color: AppColors.navy),
+                              title: Text(l10n.myDashboard),
+                              onTap: () {
+                                Navigator.pop(sheetCtx);
+                                context.push('/dashboard');
+                              },
+                            ),
+                          ],
+                        ],
                       ),
-                    ] else ...[
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // ── Sprache ────────────────────────────────────────────
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+                            child: Row(children: [
+                              const Icon(Icons.language, size: 16, color: AppColors.grey),
+                              const SizedBox(width: 8),
+                              Text(
+                                l10n.language,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.grey,
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ]),
+                          ),
+                          Row(
+                            children: [
+                              _LangButton(
+                                label: 'Deutsch',
+                                active: lp.locale.languageCode == 'de',
+                                onTap: () => lp.setLocale(const Locale('de')),
+                              ),
+                              _LangButton(
+                                label: 'English',
+                                active: lp.locale.languageCode == 'en',
+                                onTap: () => lp.setLocale(const Locale('en')),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                      ),
+                    ),
+
+                    const SizedBox(height: 16),
+
+                    // ── Rechtliches ────────────────────────────────────────
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: Column(
+                        children: [
+                          ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.description_outlined,
+                                color: AppColors.grey, size: 20),
+                            title: Text(l10n.agb,
+                                style: const TextStyle(fontSize: 14)),
+                            trailing: const Icon(Icons.chevron_right,
+                                color: AppColors.grey, size: 18),
+                            onTap: () {
+                              Navigator.pop(sheetCtx);
+                              context.push('/agb');
+                            },
+                          ),
+                          const Divider(height: 1, indent: 16, endIndent: 16),
+                          ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.shield_outlined,
+                                color: AppColors.grey, size: 20),
+                            title: Text(l10n.datenschutz,
+                                style: const TextStyle(fontSize: 14)),
+                            trailing: const Icon(Icons.chevron_right,
+                                color: AppColors.grey, size: 18),
+                            onTap: () {
+                              Navigator.pop(sheetCtx);
+                              context.push('/datenschutz');
+                            },
+                          ),
+                          const Divider(height: 1, indent: 16, endIndent: 16),
+                          ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.info_outline,
+                                color: AppColors.grey, size: 20),
+                            title: Text(l10n.impressum,
+                                style: const TextStyle(fontSize: 14)),
+                            trailing: const Icon(Icons.chevron_right,
+                                color: AppColors.grey, size: 18),
+                            onTap: () {
+                              Navigator.pop(sheetCtx);
+                              context.push('/impressum');
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+
+                    // ── Version ────────────────────────────────────────────
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      child: Center(
+                        child: Text(
+                          '${l10n.version} 1.0.0',
+                          style: TextStyle(
+                              color: Colors.grey.shade400, fontSize: 12),
+                        ),
+                      ),
+                    ),
+
+                    if (kDebugMode) ...[
                       ListTile(
-                        leading: const Icon(Icons.dashboard_outlined, color: AppColors.navy),
-                        title: const Text('Mein Dashboard'),
-                        onTap: () {
-                          Navigator.pop(context);
-                          context.push('/dashboard');
+                        leading: const Icon(Icons.bug_report_outlined,
+                            color: AppColors.grey),
+                        title: const Text('Testdaten einfügen'),
+                        onTap: () async {
+                          Navigator.pop(sheetCtx);
+                          try {
+                            await seedPartners();
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                    content: Text('Testdaten eingefügt!')),
+                              );
+                            }
+                          } catch (e) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                    content: Text('Fehler: $e'),
+                                    backgroundColor: Colors.red),
+                              );
+                            }
+                          }
                         },
                       ),
                     ],
+
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
-              if (kDebugMode) ...[
-                const SizedBox(height: 12),
-                ListTile(
-                  leading: const Icon(Icons.bug_report_outlined, color: AppColors.grey),
-                  title: const Text('Testdaten einfügen'),
-                  onTap: () async {
-                    Navigator.pop(context);
-                    try {
-                      await seedPartners();
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Testdaten eingefügt!')),
-                        );
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
-                        );
-                      }
-                    }
-                  },
-                ),
-              ],
-              const SizedBox(height: 8),
-            ],
-          ),
-        ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -139,39 +297,49 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
+    final l10n = AppLocalizations.of(context);
 
     return Scaffold(
       backgroundColor: AppColors.lightGrey,
       appBar: AppBar(
         toolbarHeight: 70,
-        titleSpacing: 12,
-        title: Container(
-          width: 56,
-          height: 56,
-          clipBehavior: Clip.antiAlias,
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            shape: BoxShape.circle,
-            boxShadow: [
-              BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 1)),
-            ],
-          ),
-          padding: const EdgeInsets.all(6),
-          child: Image.asset(
-            'assets/images/logo1.png',
-            fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Center(
-              child: Text(
+        titleSpacing: 16,
+        backgroundColor: Colors.white,
+        foregroundColor: AppColors.navy,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        title: Row(
+          children: [
+            // MoveBase Logo
+            Image.asset(
+              'assets/images/logo1.png',
+              width: 52,
+              height: 52,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Text(
                 'MB',
-                textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: AppColors.navy,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
-                ),
+                    color: AppColors.navy,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16),
               ),
             ),
-          ),
+            const SizedBox(width: 10),
+            Container(width: 1, height: 36, color: Colors.grey.shade200),
+            const SizedBox(width: 10),
+            // CrashLog Logo — tappable
+            GestureDetector(
+              onTap: _openCrashLog,
+              child: Image.asset(
+                'assets/images/logo3kleinNew.png',
+                width: 52,
+                height: 52,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Icon(
+                    Icons.apps, color: AppColors.navy, size: 36),
+              ),
+            ),
+          ],
         ),
         actions: [
           if (auth.isLoggedIn)
@@ -183,24 +351,24 @@ class _HomeScreenState extends State<HomeScreen> {
           IconButton(
             icon: const Icon(Icons.menu),
             tooltip: 'Menü',
-            onPressed: () => _openMenu(context),
+            onPressed: _openMenu,
           ),
         ],
       ),
       body: Column(
         children: [
-          _buildSearchBar(),
-          _buildCategoryFilter(),
-          Expanded(child: _buildPartnerList()),
+          _buildSearchBar(l10n),
+          _buildCategoryFilter(l10n),
+          Expanded(child: _buildPartnerList(l10n)),
         ],
       ),
     );
   }
 
-  Widget _buildSearchBar() {
+  Widget _buildSearchBar(AppLocalizations l10n) {
     return Container(
       color: AppColors.navy,
-      padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
       child: GestureDetector(
         onTap: () => context.push('/search'),
         child: Container(
@@ -209,12 +377,12 @@ class _HomeScreenState extends State<HomeScreen> {
             color: Colors.white,
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Row(
+          child: Row(
             children: [
-              Icon(Icons.search, color: AppColors.grey),
-              SizedBox(width: 10),
-              Text('Werkstatt, Lackiererei suchen...',
-                  style: TextStyle(color: AppColors.grey)),
+              const Icon(Icons.search, color: AppColors.grey),
+              const SizedBox(width: 10),
+              Text(l10n.searchHintHome,
+                  style: const TextStyle(color: AppColors.grey)),
             ],
           ),
         ),
@@ -222,7 +390,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildCategoryFilter() {
+  Widget _buildCategoryFilter(AppLocalizations l10n) {
     return SizedBox(
       height: 52,
       child: ListView(
@@ -230,12 +398,12 @@ class _HomeScreenState extends State<HomeScreen> {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         children: [
           CategoryChip(
-            label: 'Alle',
+            label: l10n.all,
             selected: _selectedCategory == null,
             onTap: () => setState(() => _selectedCategory = null),
           ),
           ...kCategories.map((c) => CategoryChip(
-                label: c,
+                label: localizedCategory(l10n, c),
                 selected: _selectedCategory == c,
                 onTap: () => setState(() => _selectedCategory = c),
               )),
@@ -244,7 +412,7 @@ class _HomeScreenState extends State<HomeScreen> {
     );
   }
 
-  Widget _buildPartnerList() {
+  Widget _buildPartnerList(AppLocalizations l10n) {
     return StreamBuilder<List<Partner>>(
       stream: _partnerService.getPartners(category: _selectedCategory),
       builder: (context, snapshot) {
@@ -253,9 +421,9 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         final partners = snapshot.data ?? [];
         if (partners.isEmpty) {
-          return const Center(
-            child: Text('Keine Betriebe gefunden.',
-                style: TextStyle(color: AppColors.grey)),
+          return Center(
+            child: Text(l10n.noBusinessesFound,
+                style: const TextStyle(color: AppColors.grey)),
           );
         }
         return ListView.builder(
@@ -264,6 +432,44 @@ class _HomeScreenState extends State<HomeScreen> {
           itemBuilder: (_, i) => PartnerCard(partner: partners[i]),
         );
       },
+    );
+  }
+}
+
+class _LangButton extends StatelessWidget {
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  const _LangButton({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(8, 4, 8, 0),
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          decoration: BoxDecoration(
+            color: active ? AppColors.navy : Colors.transparent,
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Text(
+            label,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              color: active ? Colors.white : AppColors.grey,
+              fontWeight: active ? FontWeight.bold : FontWeight.normal,
+              fontSize: 14,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

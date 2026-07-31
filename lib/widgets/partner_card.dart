@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import '../generated/l10n/app_localizations.dart';
 import '../models/partner.dart';
 import '../theme/app_theme.dart';
+import '../utils/category_utils.dart';
 
 class PartnerCard extends StatelessWidget {
   final Partner partner;
@@ -10,6 +12,14 @@ class PartnerCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
+    final catLabel = localizedCategoryList(l10n, partner.kategorien, partner.kategorie);
+    final showBerater = partner.berater.isNotEmpty &&
+        (partner.kategorien.contains('Versicherungsmakler') ||
+            partner.kategorien.contains('KFZ Sachverständiger') ||
+            partner.kategorie == 'Versicherungsmakler' ||
+            partner.kategorie == 'KFZ Sachverständiger');
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: InkWell(
@@ -35,7 +45,7 @@ class PartnerCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      partner.kategorie,
+                      catLabel,
                       style: const TextStyle(
                           color: AppColors.orange,
                           fontSize: 13,
@@ -64,9 +74,7 @@ class PartnerCard extends StatelessWidget {
                         ],
                       ],
                     ),
-                    if (partner.berater.isNotEmpty &&
-                        (partner.kategorie == 'Versicherungsmakler' ||
-                            partner.kategorie == 'KFZ Sachverständiger')) ...[
+                    if (showBerater) ...[
                       const SizedBox(height: 4),
                       Row(children: [
                         const Icon(Icons.person_outline,

@@ -89,7 +89,6 @@ class Partner {
 const List<String> kCategories = [
   'Werkstatt',
   'Abschleppdienst',
-  'Ersatzwagen',
   'Hotel',
   'Taxi',
   'Versicherungsmakler',

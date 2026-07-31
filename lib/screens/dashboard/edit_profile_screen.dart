@@ -78,7 +78,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     });
     try {
       final uid = context.read<AuthService>().currentUser!.uid;
-      final ref = FirebaseStorage.instance.ref('logos/$uid.jpg');
+      final ref = FirebaseStorage.instance.ref('logos/$uid');
       await ref.putFile(_pickedLogo!);
       final url = await ref.getDownloadURL();
       setState(() => _logoUrl = url);

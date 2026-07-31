@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import '../../generated/l10n/app_localizations.dart';
 import '../../models/partner.dart';
 import '../../services/partner_service.dart';
 import '../../theme/app_theme.dart';
+import '../../utils/category_utils.dart';
 
 class PartnerDetailScreen extends StatelessWidget {
   final String partnerId;
@@ -10,6 +12,7 @@ class PartnerDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return FutureBuilder<Partner?>(
       future: PartnerService().getPartner(partnerId),
       builder: (context, snapshot) {
@@ -18,7 +21,7 @@ class PartnerDetailScreen extends StatelessWidget {
         }
         final partner = snapshot.data;
         if (partner == null) {
-          return const Scaffold(body: Center(child: Text('Betrieb nicht gefunden.')));
+          return Scaffold(body: Center(child: Text(l10n.businessNotFound)));
         }
         return _DetailView(partner: partner);
       },
@@ -51,6 +54,7 @@ class _DetailView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = AppLocalizations.of(context);
     return Scaffold(
       body: CustomScrollView(
         slivers: [
@@ -61,12 +65,12 @@ class _DetailView extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildHeader(),
+                  _buildHeader(l10n),
                   const SizedBox(height: 20),
-                  _buildActionButtons(),
+                  _buildActionButtons(l10n),
                   const SizedBox(height: 20),
                   if (partner.berater.isNotEmpty) ...[
-                    _sectionTitle('Ihr Berater'),
+                    _sectionTitle(l10n.yourAdvisor),
                     Row(children: [
                       const Icon(Icons.person_outline,
                           size: 18, color: AppColors.grey),
@@ -80,24 +84,24 @@ class _DetailView extends StatelessWidget {
                     const SizedBox(height: 20),
                   ],
                   if (partner.oeffnungszeiten.isNotEmpty) ...[
-                    _sectionTitle('Öffnungszeiten'),
+                    _sectionTitle(l10n.openingHours),
                     Text(partner.oeffnungszeiten,
                         style: const TextStyle(color: AppColors.grey)),
                     const SizedBox(height: 20),
                   ],
                   if (partner.leistungen.isNotEmpty) ...[
-                    _sectionTitle('Leistungen'),
+                    _sectionTitle(l10n.services),
                     Text(partner.leistungen),
                     const SizedBox(height: 20),
                   ],
                   if (partner.kategorien.length > 1) ...[
-                    _sectionTitle('Kategorien'),
+                    _sectionTitle(l10n.categories),
                     Wrap(
                       spacing: 8,
                       runSpacing: 8,
                       children: partner.kategorien
                           .map((s) => Chip(
-                                label: Text(s),
+                                label: Text(localizedCategory(l10n, s)),
                                 backgroundColor: AppColors.orange.withOpacity(0.1),
                                 labelStyle: const TextStyle(color: AppColors.navy),
                               ))
@@ -106,12 +110,12 @@ class _DetailView extends StatelessWidget {
                     const SizedBox(height: 20),
                   ],
                   if (partner.ersatzwagenHinweis.isNotEmpty) ...[
-                    _sectionTitle('Ersatzwagen'),
+                    _sectionTitle(l10n.replacementVehicle),
                     _InfoBox(partner.ersatzwagenHinweis),
                     const SizedBox(height: 20),
                   ],
                   if (partner.zusatzInfo.isNotEmpty) ...[
-                    _sectionTitle('Zusatzleistungen'),
+                    _sectionTitle(l10n.additionalServices),
                     ...partner.zusatzInfo.entries.map((e) => Padding(
                           padding: const EdgeInsets.only(bottom: 12),
                           child: Column(
@@ -129,7 +133,7 @@ class _DetailView extends StatelessWidget {
                     const SizedBox(height: 8),
                   ],
                   if (partner.zusatzTelefon.isNotEmpty) ...[
-                    _sectionTitle('Direktkontakte'),
+                    _sectionTitle(l10n.directContacts),
                     ...partner.zusatzTelefon.entries.map((e) => ListTile(
                           contentPadding: EdgeInsets.zero,
                           leading: const Icon(Icons.phone, color: AppColors.orange),
@@ -153,6 +157,8 @@ class _DetailView extends StatelessWidget {
       return SliverAppBar(
         expandedHeight: 220,
         pinned: true,
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
         flexibleSpace: FlexibleSpaceBar(
           background: Image.network(
             partner.logo,
@@ -170,7 +176,8 @@ class _DetailView extends StatelessWidget {
     );
   }
 
-  Widget _buildHeader() {
+  Widget _buildHeader(AppLocalizations l10n) {
+    final catLabel = localizedCategoryList(l10n, partner.kategorien, partner.kategorie);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -195,7 +202,7 @@ class _DetailView extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                       color: AppColors.navy)),
               const SizedBox(height: 4),
-              Text(partner.kategorie,
+              Text(catLabel,
                   style: const TextStyle(
                       color: AppColors.orange, fontWeight: FontWeight.w500)),
               const SizedBox(height: 6),
@@ -219,7 +226,7 @@ class _DetailView extends StatelessWidget {
     );
   }
 
-  Widget _buildActionButtons() {
+  Widget _buildActionButtons(AppLocalizations l10n) {
     return Wrap(
       spacing: 10,
       runSpacing: 10,
@@ -227,25 +234,25 @@ class _DetailView extends StatelessWidget {
         if (partner.telefon.isNotEmpty)
           _ActionBtn(
             icon: Icons.phone,
-            label: 'Anrufen',
+            label: l10n.call,
             filled: true,
             onTap: _call,
           ),
         _ActionBtn(
           icon: Icons.directions,
-          label: 'Navigation',
+          label: l10n.navigation,
           onTap: _maps,
         ),
         if (partner.website.isNotEmpty)
           _ActionBtn(
             icon: Icons.language,
-            label: 'Website',
+            label: l10n.website,
             onTap: _website,
           ),
         if (partner.email.isNotEmpty)
           _ActionBtn(
             icon: Icons.email_outlined,
-            label: 'E-Mail',
+            label: l10n.email,
             onTap: _email,
           ),
       ],
