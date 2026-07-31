@@ -1,6 +1,8 @@
 import 'dart:io' show Platform;
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../generated/l10n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
@@ -25,6 +27,44 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   final _partnerService = PartnerService();
   String? _selectedCategory;
+  Position? _position;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchLocation();
+  }
+
+  Future<void> _fetchLocation() async {
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.denied ||
+          permission == LocationPermission.deniedForever) return;
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings:
+            const LocationSettings(accuracy: LocationAccuracy.low),
+      );
+      if (mounted) setState(() => _position = pos);
+    } catch (_) {}
+  }
+
+  String? _distanceLabel(Partner p) {
+    if (p.lat == null || p.lng == null || _position == null) return null;
+    const r = 6371.0;
+    final dLat = (p.lat! - _position!.latitude) * pi / 180;
+    final dLng = (p.lng! - _position!.longitude) * pi / 180;
+    final a = sin(dLat / 2) * sin(dLat / 2) +
+        cos(_position!.latitude * pi / 180) *
+            cos(p.lat! * pi / 180) *
+            sin(dLng / 2) *
+            sin(dLng / 2);
+    final km = r * 2 * atan2(sqrt(a), sqrt(1 - a));
+    if (km < 1) return '${(km * 1000).round()} m';
+    return '${km.toStringAsFixed(1)} km';
+  }
 
   Future<void> _openCrashLog() async {
     if (!kIsWeb && Platform.isAndroid) {
@@ -450,7 +490,10 @@ class _HomeScreenState extends State<HomeScreen> {
         return ListView.builder(
           padding: const EdgeInsets.all(12),
           itemCount: partners.length,
-          itemBuilder: (_, i) => PartnerCard(partner: partners[i]),
+          itemBuilder: (_, i) => PartnerCard(
+                partner: partners[i],
+                distanceLabel: _distanceLabel(partners[i]),
+              ),
         );
       },
     );
