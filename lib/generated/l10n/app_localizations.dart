@@ -937,6 +937,12 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Passwort bestätigen'**
   String get confirmPassword;
+
+  /// No description provided for @photos.
+  ///
+  /// In de, this message translates to:
+  /// **'Fotos'**
+  String get photos;
 }
 
 class _AppLocalizationsDelegate

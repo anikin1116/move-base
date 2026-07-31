@@ -155,5 +155,7 @@
   "passwordsDoNotMatch": "Passwords do not match.",
   "confirmPassword": "Confirm password",
 
-  "photos": "Photos"
+  "photos": "Photos",
+  "map": "Map",
+  "mapNoLocation": "No location available"
 }

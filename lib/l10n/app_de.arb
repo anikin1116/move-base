@@ -155,5 +155,7 @@
   "passwordsDoNotMatch": "Passwörter stimmen nicht überein.",
   "confirmPassword": "Passwort bestätigen",
 
-  "photos": "Fotos"
+  "photos": "Fotos",
+  "map": "Karte",
+  "mapNoLocation": "Kein Standort verfügbar"
 }

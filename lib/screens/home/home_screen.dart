@@ -369,23 +369,44 @@ class _HomeScreenState extends State<HomeScreen> {
     return Container(
       color: AppColors.navy,
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-      child: GestureDetector(
-        onTap: () => context.push('/search'),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(12),
+      child: Row(
+        children: [
+          Expanded(
+            child: GestureDetector(
+              onTap: () => context.push('/search'),
+              child: Container(
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.search, color: AppColors.grey),
+                    const SizedBox(width: 10),
+                    Text(l10n.searchHintHome,
+                        style: const TextStyle(color: AppColors.grey)),
+                  ],
+                ),
+              ),
+            ),
           ),
-          child: Row(
-            children: [
-              const Icon(Icons.search, color: AppColors.grey),
-              const SizedBox(width: 10),
-              Text(l10n.searchHintHome,
-                  style: const TextStyle(color: AppColors.grey)),
-            ],
+          const SizedBox(width: 10),
+          GestureDetector(
+            onTap: () => context.push('/map'),
+            child: Container(
+              width: 50,
+              height: 50,
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.white.withOpacity(0.3)),
+              ),
+              child: const Icon(Icons.map_outlined, color: Colors.white),
+            ),
           ),
-        ),
+        ],
       ),
     );
   }
