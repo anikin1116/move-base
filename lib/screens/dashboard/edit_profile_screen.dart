@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'package:http/http.dart' as http;
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -152,6 +154,25 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     setState(() => _photoUrls.remove(url));
   }
 
+  Future<Map<String, double>?> _geocode(String adresse, String plz, String ort) async {
+    try {
+      final q = Uri.encodeComponent('$adresse, $plz $ort');
+      final url = Uri.parse(
+          'https://nominatim.openstreetmap.org/search?q=$q&format=json&limit=1&countrycodes=at,de,ch');
+      final resp = await http.get(url,
+          headers: {'User-Agent': 'MoveBase/1.0 (contact@movebase.at)'});
+      if (resp.statusCode == 200) {
+        final results = jsonDecode(resp.body) as List;
+        if (results.isNotEmpty) {
+          final lat = double.tryParse(results[0]['lat']?.toString() ?? '');
+          final lng = double.tryParse(results[0]['lon']?.toString() ?? '');
+          if (lat != null && lng != null) return {'lat': lat, 'lng': lng};
+        }
+      }
+    } catch (_) {}
+    return null;
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
@@ -181,6 +202,15 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       };
       if (_logoUrl != null) data['logo'] = _logoUrl;
       data['photos'] = _photoUrls;
+
+      // Geocode address → save coordinates
+      final coords = await _geocode(
+          _adresse.text.trim(), _plz.text.trim(), _ort.text.trim());
+      if (coords != null) {
+        data['firmaLatitude'] = coords['lat'];
+        data['firmaLongitude'] = coords['lng'];
+      }
+
       await PartnerService().updateProfile(uid, data);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(

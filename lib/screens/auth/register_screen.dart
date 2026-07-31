@@ -68,6 +68,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // Address autocomplete
   List<_AddressSuggestion> _suggestions = [];
   bool _adresseSearching = false;
+  double? _adresseLat;
+  double? _adresseLng;
   Timer? _adresseTimer;
   Timer? _plzTimer;
 
@@ -238,6 +240,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'plz': _plzCtrl.text.trim(),
         'ort': _ortCtrl.text.trim(),
         'land': _land,
+        if (_adresseLat != null) 'firmaLatitude': _adresseLat,
+        if (_adresseLng != null) 'firmaLongitude': _adresseLng,
         'telefon': _telefonCtrl.text.trim(),
         'website': _websiteCtrl.text.trim(),
         'oeffnungszeiten': _oeffnungCtrl.text.trim(),
@@ -606,6 +610,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       _adresseCtrl.text = s.streetLine;
                       if (s.postcode.isNotEmpty) _plzCtrl.text = s.postcode;
                       if (s.city.isNotEmpty) _ortCtrl.text = s.city;
+                      _adresseLat = s.lat;
+                      _adresseLng = s.lng;
                       _suggestions = [];
                     });
                   },
@@ -677,6 +683,8 @@ class _AddressSuggestion {
   final String postcode;
   final String city;
   final String displayName;
+  final double? lat;
+  final double? lng;
 
   const _AddressSuggestion({
     required this.road,
@@ -684,6 +692,8 @@ class _AddressSuggestion {
     required this.postcode,
     required this.city,
     required this.displayName,
+    this.lat,
+    this.lng,
   });
 
   factory _AddressSuggestion.fromJson(Map<String, dynamic> json) {
@@ -701,6 +711,8 @@ class _AddressSuggestion {
           (address['municipality'] as String?) ??
           '',
       displayName: (json['display_name'] as String?) ?? '',
+      lat: double.tryParse(json['lat']?.toString() ?? ''),
+      lng: double.tryParse(json['lon']?.toString() ?? ''),
     );
   }
 
