@@ -21,6 +21,121 @@ class _HomeScreenState extends State<HomeScreen> {
   final _partnerService = PartnerService();
   String? _selectedCategory;
 
+  void _openMenu(BuildContext context) {
+    final auth = context.read<AuthService>();
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 16, 20, 8),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.grey.shade300,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+              // Für Partnerbetriebe
+              Container(
+                decoration: BoxDecoration(
+                  color: AppColors.navy.withOpacity(0.05),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: AppColors.navy.withOpacity(0.12)),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 14, 16, 4),
+                      child: Row(children: [
+                        const Icon(Icons.business, size: 16, color: AppColors.navy),
+                        const SizedBox(width: 8),
+                        const Text(
+                          'Für Partnerbetriebe',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.navy,
+                            fontSize: 13,
+                          ),
+                        ),
+                      ]),
+                    ),
+                    if (!auth.isLoggedIn) ...[
+                      ListTile(
+                        leading: const Icon(Icons.login, color: AppColors.navy),
+                        title: const Text('Partner-Login'),
+                        subtitle: const Text('Für bereits registrierte Betriebe'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.push('/login');
+                        },
+                      ),
+                      const Divider(height: 1, indent: 16, endIndent: 16),
+                      ListTile(
+                        leading: const Icon(Icons.app_registration, color: AppColors.orange),
+                        title: const Text('Als Partner registrieren'),
+                        subtitle: const Text('Jetzt Betrieb eintragen'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.push('/register');
+                        },
+                      ),
+                    ] else ...[
+                      ListTile(
+                        leading: const Icon(Icons.dashboard_outlined, color: AppColors.navy),
+                        title: const Text('Mein Dashboard'),
+                        onTap: () {
+                          Navigator.pop(context);
+                          context.push('/dashboard');
+                        },
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              if (kDebugMode) ...[
+                const SizedBox(height: 12),
+                ListTile(
+                  leading: const Icon(Icons.bug_report_outlined, color: AppColors.grey),
+                  title: const Text('Testdaten einfügen'),
+                  onTap: () async {
+                    Navigator.pop(context);
+                    try {
+                      await seedPartners();
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Testdaten eingefügt!')),
+                        );
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
+                        );
+                      }
+                    }
+                  },
+                ),
+              ],
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final auth = context.watch<AuthService>();
@@ -31,8 +146,8 @@ class _HomeScreenState extends State<HomeScreen> {
         toolbarHeight: 70,
         titleSpacing: 12,
         title: Container(
-          width: 64,
-          height: 64,
+          width: 56,
+          height: 56,
           clipBehavior: Clip.antiAlias,
           decoration: const BoxDecoration(
             color: Colors.white,
@@ -41,63 +156,35 @@ class _HomeScreenState extends State<HomeScreen> {
               BoxShadow(color: Colors.black26, blurRadius: 4, offset: Offset(0, 1)),
             ],
           ),
-          padding: EdgeInsets.zero,
-          child: Transform.scale(
-            scale: 1.5,
-            child: Image.asset(
-            'assets/images/logo.png',
+          padding: const EdgeInsets.all(6),
+          child: Image.asset(
+            'assets/images/logo1.png',
             fit: BoxFit.contain,
-            errorBuilder: (_, __, ___) => const Text(
-              'MB',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: AppColors.navy,
-                fontWeight: FontWeight.bold,
-                fontSize: 14,
+            errorBuilder: (_, __, ___) => const Center(
+              child: Text(
+                'MB',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: AppColors.navy,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 14,
+                ),
               ),
             ),
           ),
-          ),
         ),
         actions: [
-          if (kDebugMode)
-            IconButton(
-              icon: const Icon(Icons.bug_report_outlined),
-              tooltip: 'Testdaten einfügen',
-              onPressed: () async {
-                try {
-                  await seedPartners();
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('Testdaten eingefügt!')),
-                    );
-                  }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
-                    );
-                  }
-                }
-              },
-            ),
           if (auth.isLoggedIn)
             IconButton(
               icon: const Icon(Icons.dashboard_outlined),
+              tooltip: 'Dashboard',
               onPressed: () => context.push('/dashboard'),
-            )
-          else ...[
-            TextButton(
-              onPressed: () => context.push('/register'),
-              child: const Text('Registrieren',
-                  style: TextStyle(color: Colors.white70)),
             ),
-            TextButton(
-              onPressed: () => context.push('/login'),
-              child: const Text('Login',
-                  style: TextStyle(color: AppColors.orange)),
-            ),
-          ],
+          IconButton(
+            icon: const Icon(Icons.menu),
+            tooltip: 'Menü',
+            onPressed: () => _openMenu(context),
+          ),
         ],
       ),
       body: Column(
