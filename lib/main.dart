@@ -4,6 +4,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'generated/l10n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'firebase_options.dart';
 import 'theme/app_theme.dart';
 import 'services/auth_service.dart';
@@ -55,8 +56,42 @@ final _router = GoRouter(
   ],
 );
 
-class MoveBaseApp extends StatelessWidget {
+class MoveBaseApp extends StatefulWidget {
   const MoveBaseApp({super.key});
+
+  @override
+  State<MoveBaseApp> createState() => _MoveBaseAppState();
+}
+
+class _MoveBaseAppState extends State<MoveBaseApp> with WidgetsBindingObserver {
+  DateTime? _backgroundedAt;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _backgroundedAt = DateTime.now();
+    } else if (state == AppLifecycleState.resumed) {
+      final bg = _backgroundedAt;
+      if (bg != null &&
+          DateTime.now().difference(bg).inMinutes >= 30) {
+        _backgroundedAt = null;
+        FirebaseAuth.instance.signOut();
+        _router.go('/login');
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {

@@ -458,15 +458,18 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             _section('Leistungsbeschreibung'),
             _field(_leistungen, 'Beschreiben Sie Ihre Leistungen...',
                 Icons.description_outlined,
-                maxLines: 5),
+                maxLines: 5, maxLength: 700),
             const SizedBox(height: 20),
 
-            // Ersatzwagen
-            _section('Ersatzwagen-Hinweis'),
-            _field(_ersatzwagenHinweis, 'Hinweis zum Ersatzwagen...',
-                Icons.directions_car_outlined,
-                maxLines: 3),
-            const SizedBox(height: 32),
+            // Ersatzwagen-Hinweis — nur wenn Ersatzwagen ausgewählt
+            if (_selectedZusatz.contains('Ersatzwagen')) ...[
+              _section('Ersatzwagen-Hinweis'),
+              _field(_ersatzwagenHinweis, 'Hinweis zum Ersatzwagen...',
+                  Icons.directions_car_outlined,
+                  maxLines: 3, maxLength: 150),
+              const SizedBox(height: 20),
+            ],
+            const SizedBox(height: 12),
 
             ElevatedButton(
               onPressed: _saving ? null : _save,
@@ -506,12 +509,13 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       );
 
   Widget _field(TextEditingController ctrl, String hint, IconData icon,
-      {int maxLines = 1, bool required = false}) {
+      {int maxLines = 1, bool required = false, int? maxLength}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: TextFormField(
         controller: ctrl,
         maxLines: maxLines,
+        maxLength: maxLength,
         validator: required && maxLines == 1
             ? (v) => (v == null || v.trim().isEmpty) ? 'Pflichtfeld' : null
             : null,

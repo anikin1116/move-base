@@ -88,7 +88,12 @@ class _HomeScreenState extends State<HomeScreen> {
           mode: LaunchMode.externalApplication,
         );
       }
-    } else {
+    } else if (!kIsWeb && Platform.isIOS) {
+      final appUri = Uri.parse('crashlog://');
+      if (await canLaunchUrl(appUri)) {
+        await launchUrl(appUri);
+        return;
+      }
       await launchUrl(
         Uri.parse('https://apps.apple.com/app/id19209005258'),
         mode: LaunchMode.externalApplication,
