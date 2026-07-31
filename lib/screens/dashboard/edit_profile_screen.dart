@@ -35,6 +35,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   File? _pickedLogo;
   bool _saving = false;
   bool _uploadingLogo = false;
+  List<String> _photoUrls = [];
+  bool _uploadingPhotos = false;
 
   @override
   void initState() {
@@ -51,6 +53,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _ersatzwagenHinweis = TextEditingController(text: p.ersatzwagenHinweis);
     _selectedZusatz = List<String>.from(p.kategorien);
     _logoUrl = p.logo.isEmpty ? null : p.logo;
+    _photoUrls = List<String>.from(p.photos);
   }
 
   @override
@@ -95,6 +98,47 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     }
   }
 
+  Future<void> _pickPhotos() async {
+    if (_photoUrls.length >= 6) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Maximal 6 Fotos erlaubt.')),
+      );
+      return;
+    }
+    final picker = ImagePicker();
+    final picked = await picker.pickMultiImage(imageQuality: 80, maxWidth: 1024);
+    if (picked.isEmpty) return;
+    final remaining = 6 - _photoUrls.length;
+    final toUpload = picked.take(remaining).toList();
+    setState(() => _uploadingPhotos = true);
+    try {
+      final uid = context.read<AuthService>().currentUser!.uid;
+      for (final xfile in toUpload) {
+        final ts = DateTime.now().millisecondsSinceEpoch;
+        final ref = FirebaseStorage.instance.ref('photos/$uid/$ts');
+        await ref.putFile(File(xfile.path));
+        final url = await ref.getDownloadURL();
+        setState(() => _photoUrls.add(url));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Foto-Upload fehlgeschlagen: $e'),
+              backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingPhotos = false);
+    }
+  }
+
+  Future<void> _deletePhoto(String url) async {
+    try {
+      await FirebaseStorage.instance.refFromURL(url).delete();
+    } catch (_) {}
+    setState(() => _photoUrls.remove(url));
+  }
+
   Future<void> _save() async {
     if (!_formKey.currentState!.validate()) return;
     setState(() => _saving = true);
@@ -113,6 +157,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         'kategorien': _selectedZusatz,
       };
       if (_logoUrl != null) data['logo'] = _logoUrl;
+      data['photos'] = _photoUrls;
       await PartnerService().updateProfile(uid, data);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -196,6 +241,68 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               icon: const Icon(Icons.upload_outlined),
               label: const Text('Logo auswählen'),
             ),
+            const SizedBox(height: 20),
+
+            // Fotos
+            _section('Fotos (max. 6)'),
+            if (_photoUrls.isNotEmpty) ...[
+              SizedBox(
+                height: 110,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: _photoUrls.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (_, i) => Stack(
+                    children: [
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: Image.network(
+                          _photoUrls[i],
+                          width: 110,
+                          height: 110,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => Container(
+                            width: 110,
+                            color: Colors.grey.shade200,
+                            child: const Icon(Icons.broken_image_outlined,
+                                color: AppColors.grey),
+                          ),
+                        ),
+                      ),
+                      Positioned(
+                        top: 4,
+                        right: 4,
+                        child: GestureDetector(
+                          onTap: () => _deletePhoto(_photoUrls[i]),
+                          child: Container(
+                            decoration: const BoxDecoration(
+                              color: Colors.black54,
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.close,
+                                color: Colors.white, size: 18),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+            ],
+            if (_uploadingPhotos)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_photoUrls.length < 6)
+              TextButton.icon(
+                onPressed: _pickPhotos,
+                icon: const Icon(Icons.add_photo_alternate_outlined),
+                label: Text(_photoUrls.isEmpty
+                    ? 'Fotos hinzufügen'
+                    : 'Weitere Fotos hinzufügen'),
+              ),
             const SizedBox(height: 20),
 
             // Stammdaten

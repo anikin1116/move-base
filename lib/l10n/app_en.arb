@@ -153,5 +153,7 @@
   "registrationFailed": "Registration failed:",
   "passwordTooShort": "Password must be at least 6 characters.",
   "passwordsDoNotMatch": "Passwords do not match.",
-  "confirmPassword": "Confirm password"
+  "confirmPassword": "Confirm password",
+
+  "photos": "Photos"
 }

@@ -153,5 +153,7 @@
   "registrationFailed": "Registrierung fehlgeschlagen:",
   "passwordTooShort": "Passwort muss mindestens 6 Zeichen haben.",
   "passwordsDoNotMatch": "Passwörter stimmen nicht überein.",
-  "confirmPassword": "Passwort bestätigen"
+  "confirmPassword": "Passwort bestätigen",
+
+  "photos": "Fotos"
 }

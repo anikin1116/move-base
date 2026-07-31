@@ -67,6 +67,10 @@ class _DetailView extends StatelessWidget {
                 children: [
                   _buildHeader(l10n),
                   const SizedBox(height: 20),
+                  if (partner.photos.isNotEmpty) ...[
+                    _buildPhotoGallery(context, l10n),
+                    const SizedBox(height: 20),
+                  ],
                   _buildActionButtons(l10n),
                   const SizedBox(height: 20),
                   if (partner.berater.isNotEmpty) ...[
@@ -256,6 +260,81 @@ class _DetailView extends StatelessWidget {
             onTap: _email,
           ),
       ],
+    );
+  }
+
+  Widget _buildPhotoGallery(BuildContext context, AppLocalizations l10n) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _sectionTitle(l10n.photos),
+        SizedBox(
+          height: 180,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: partner.photos.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 10),
+            itemBuilder: (context, index) {
+              return GestureDetector(
+                onTap: () => _openPhotoViewer(context, index),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: Image.network(
+                    partner.photos[index],
+                    width: 240,
+                    height: 180,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) => Container(
+                      width: 240,
+                      color: AppColors.navy.withOpacity(0.1),
+                      child: const Icon(Icons.broken_image_outlined,
+                          color: AppColors.grey, size: 40),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _openPhotoViewer(BuildContext context, int initialIndex) {
+    showDialog(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: Colors.black,
+        insetPadding: EdgeInsets.zero,
+        child: Stack(
+          children: [
+            PageView.builder(
+              controller: PageController(initialPage: initialIndex),
+              itemCount: partner.photos.length,
+              itemBuilder: (_, i) => InteractiveViewer(
+                child: Center(
+                  child: Image.network(
+                    partner.photos[i],
+                    fit: BoxFit.contain,
+                    errorBuilder: (_, __, ___) => const Icon(
+                        Icons.broken_image_outlined,
+                        color: Colors.white54,
+                        size: 60),
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 40,
+              right: 16,
+              child: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white, size: 28),
+                onPressed: () => Navigator.of(context).pop(),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 

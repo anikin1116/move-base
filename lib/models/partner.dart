@@ -25,6 +25,7 @@ class Partner {
   final double? lng;
   final Map<String, String> zusatzTelefon;
   final Map<String, String> zusatzInfo;
+  final List<String> photos;
 
   Partner({
     required this.id,
@@ -51,6 +52,7 @@ class Partner {
     this.lng,
     required this.zusatzTelefon,
     required this.zusatzInfo,
+    required this.photos,
   });
 
   factory Partner.fromFirestore(DocumentSnapshot doc) {
@@ -80,6 +82,7 @@ class Partner {
       lng: (d['firmaLongitude'] as num?)?.toDouble(),
       zusatzTelefon: Map<String, String>.from(d['zusatzTelefon'] ?? {}),
       zusatzInfo: Map<String, String>.from(d['zusatzInfo'] ?? {}),
+      photos: List<String>.from(d['photos'] ?? []),
     );
   }
 
