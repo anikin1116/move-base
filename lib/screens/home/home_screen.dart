@@ -51,7 +51,7 @@ class _HomeScreenState extends State<HomeScreen> {
     } catch (_) {}
   }
 
-  String? _distanceLabel(Partner p) {
+  double? _distanceKm(Partner p) {
     if (p.lat == null || p.lng == null || _position == null) return null;
     const r = 6371.0;
     final dLat = (p.lat! - _position!.latitude) * pi / 180;
@@ -61,7 +61,12 @@ class _HomeScreenState extends State<HomeScreen> {
             cos(p.lat! * pi / 180) *
             sin(dLng / 2) *
             sin(dLng / 2);
-    final km = r * 2 * atan2(sqrt(a), sqrt(1 - a));
+    return r * 2 * atan2(sqrt(a), sqrt(1 - a));
+  }
+
+  String? _distanceLabel(Partner p) {
+    final km = _distanceKm(p);
+    if (km == null) return null;
     if (km < 1) return '${(km * 1000).round()} m';
     return '${km.toStringAsFixed(1)} km';
   }
@@ -480,7 +485,17 @@ class _HomeScreenState extends State<HomeScreen> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-        final partners = snapshot.data ?? [];
+        final partners = List<Partner>.from(snapshot.data ?? []);
+        if (_position != null) {
+          partners.sort((a, b) {
+            final da = _distanceKm(a);
+            final db = _distanceKm(b);
+            if (da == null && db == null) return b.prioritaet.compareTo(a.prioritaet);
+            if (da == null) return 1;
+            if (db == null) return -1;
+            return da.compareTo(db);
+          });
+        }
         if (partners.isEmpty) {
           return Center(
             child: Text(l10n.noBusinessesFound,
