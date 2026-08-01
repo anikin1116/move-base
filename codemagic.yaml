@@ -4,41 +4,40 @@ workflows:
     max_build_duration: 60
     environment:
       flutter: stable
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: com.mycompany.moveBase
       vars:
         APP_STORE_APPLE_ID: "6796435104"
+        APP_STORE_CONNECT_ISSUER_ID: "0c72b8d2-f4a7-4924-a73b-b657b5fe5c39"
+        APP_STORE_CONNECT_KEY_IDENTIFIER: "Y79JG4VG3G"
     scripts:
       - name: Get Flutter packages
         script: flutter pub get
-      - name: Fix p12 for macOS keychain
+      - name: Fetch signing files
+        script: |
+          app-store-connect fetch-signing-files com.mycompany.moveBase \
+            --create --type IOS_APP_STORE --platform IOS \
+            --issuer-id $APP_STORE_CONNECT_ISSUER_ID \
+            --key-id $APP_STORE_CONNECT_KEY_IDENTIFIER \
+            --private-key @env:AUTH_KEY \
+            --certificate-key @env:CERTIFICATE_KEY
+      - name: Initialize keychain
+        script: keychain initialize
+      - name: Fix p12 and set partition list
         script: |
           set -e
           P12=$(ls /Users/builder/Library/Developer/Xcode/UserData/Certificates/*.p12 | head -1)
           KEYCHAIN=$(ls /Users/builder/Library/codemagic-cli-tools/keychains/*.keychain-db | head -1)
           echo "P12: $P12"
           echo "Keychain: $KEYCHAIN"
-
-          # Use Homebrew OpenSSL 3.x — it supports AES-256 p12 input AND legacy output
-          # macOS system LibreSSL cannot read AES-256 encrypted p12 files
           OPENSSL=/usr/bin/openssl
           for candidate in /opt/homebrew/opt/openssl@3/bin/openssl /usr/local/opt/openssl@3/bin/openssl; do
             if [ -f "$candidate" ]; then OPENSSL="$candidate"; break; fi
           done
           echo "OpenSSL: $($OPENSSL version)"
-
-          # Extract cert from the AES-256 p12
           $OPENSSL pkcs12 -in "$P12" -nokeys -clcerts -passin pass:"" -out /tmp/sign.crt
           [ -s /tmp/sign.crt ] || { echo "ERROR: cert extraction failed"; exit 1; }
-          echo "Cert extracted"
-
-          # Write private key and recreate p12 with legacy 3DES (macOS-compatible)
           echo "$CERTIFICATE_KEY" > /tmp/sign.key
           $OPENSSL pkcs12 -legacy -export -in /tmp/sign.crt -inkey /tmp/sign.key -out /tmp/fixed.p12 -passout pass:""
           echo "Legacy p12 created"
-
-          # Import into keychain
           security import /tmp/fixed.p12 -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -P "" -A
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN"
           echo "Done"
@@ -53,7 +52,9 @@ workflows:
       - build/ios/ipa/*.ipa
     publishing:
       app_store_connect:
-        auth: integration
+        api_key: $AUTH_KEY
+        key_id: $APP_STORE_CONNECT_KEY_IDENTIFIER
+        issuer_id: $APP_STORE_CONNECT_ISSUER_ID
         submit_to_testflight: true
 
   android-release:
