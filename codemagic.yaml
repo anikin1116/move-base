@@ -12,6 +12,21 @@ workflows:
     scripts:
       - name: Get Flutter packages
         script: flutter pub get
+      - name: Fix p12 for macOS keychain
+        script: |
+          set -e
+          P12=$(ls /Users/builder/Library/Developer/Xcode/UserData/Certificates/*.p12 | head -1)
+          KEYCHAIN=$(ls /Users/builder/Library/codemagic-cli-tools/keychains/*.keychain-db | head -1)
+          echo "P12: $P12"
+          echo "Keychain: $KEYCHAIN"
+          openssl pkcs12 -in "$P12" -nokeys -clcerts -passin pass:"" -out /tmp/sign.crt
+          echo "Cert extracted"
+          echo "$CERTIFICATE_KEY" > /tmp/sign.key
+          openssl pkcs12 -legacy -export -in /tmp/sign.crt -inkey /tmp/sign.key -out /tmp/fixed.p12 -passout pass:""
+          echo "Legacy p12 created"
+          security import /tmp/fixed.p12 -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -P "" -A
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN"
+          echo "Done"
       - name: Set up iOS signing
         script: xcode-project use-profiles
       - name: Build iOS
