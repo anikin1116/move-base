@@ -28,10 +28,7 @@ workflows:
           set -e
           P12=$(ls /Users/builder/Library/Developer/Xcode/UserData/Certificates/*.p12 | head -1)
           KEYCHAIN=$(ls /Users/builder/Library/codemagic-cli-tools/keychains/*.keychain-db | head -1)
-          echo "P12: $P12 ($(wc -c < "$P12") bytes)"
-          echo "Keychain: $KEYCHAIN"
 
-          # Extract cert (the .p12 is a PEM cert file in codemagic-cli-tools 0.69.0)
           if openssl pkcs12 -legacy -in "$P12" -nokeys -clcerts -passin pass:"" -out /tmp/sign.crt 2>/dev/null && [ -s /tmp/sign.crt ]; then
             echo "Cert read as PKCS12"
           elif openssl x509 -in "$P12" -inform DER -out /tmp/sign.crt 2>/dev/null && [ -s /tmp/sign.crt ]; then
@@ -42,12 +39,8 @@ workflows:
             echo "ERROR: cannot read cert"; exit 1
           fi
 
-          echo "Cert SHA1: $(openssl x509 -in /tmp/sign.crt -fingerprint -noout | sed 's/.*Fingerprint=//;s/://g')"
-
-          # Write private key
           echo "$CERTIFICATE_KEY" > /tmp/sign.key
 
-          # Try PKCS12 with SHA-1 MAC (traditional format macOS security import expects)
           if openssl pkcs12 -export -legacy \
                -in /tmp/sign.crt -inkey /tmp/sign.key \
                -out /tmp/fixed.p12 -passout pass:"" \
@@ -56,53 +49,17 @@ workflows:
                -T /usr/bin/codesign -T /usr/bin/security -A 2>&1; then
             echo "PKCS12 import succeeded"
           else
-            echo "PKCS12 import failed, falling back to separate cert+key import"
-            security import /tmp/sign.crt -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -A || echo "Cert import warning"
-            security import /tmp/sign.key -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -A || echo "Key import warning"
+            security import /tmp/sign.crt -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -A || true
+            security import /tmp/sign.key -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -A || true
           fi
 
-          # Make key accessible for codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN"
-
-          # Add keychain to search list
           security list-keychains -s "$KEYCHAIN" ~/Library/Keychains/login.keychain-db
           security default-keychain -s "$KEYCHAIN"
-
-          echo "--- Identities in keychain ---"
-          security find-identity -v -p codesigning "$KEYCHAIN" || true
-          echo "---"
-      - name: Diagnose signing match
-        script: |
-          KEYCHAIN=$(ls /Users/builder/Library/codemagic-cli-tools/keychains/*.keychain-db | head -1)
-          echo "=== Keychain cert SHA1 ==="
-          security find-identity -v -p codesigning "$KEYCHAIN" || true
-
-          printf '%s\n' \
-            'import sys, plistlib, hashlib' \
-            'data = sys.stdin.buffer.read()' \
-            'plist = plistlib.loads(data)' \
-            'print("UUID:", plist.get("UUID", "N/A"))' \
-            'ent = plist.get("Entitlements", {})' \
-            'print("AppID:", ent.get("application-identifier", "N/A"))' \
-            'for i, cert in enumerate(plist.get("DeveloperCertificates", [])):' \
-            '    sha1 = hashlib.sha1(bytes(cert)).hexdigest().upper()' \
-            '    print("Cert", i, "SHA1:", sha1)' \
-            > /tmp/check_profiles.py
-
-          echo "=== Profile cert SHA1s ==="
-          for prof in "/Users/builder/Library/Developer/Xcode/UserData/Provisioning Profiles/"*.mobileprovision; do
-            [ -f "$prof" ] || continue
-            echo "--- $(basename "$prof") ---"
-            security cms -D -i "$prof" 2>/dev/null | python3 /tmp/check_profiles.py || echo "Failed to parse"
-          done
-
-          echo "=== Bundle IDs in xcodeproj ==="
-          grep "PRODUCT_BUNDLE_IDENTIFIER" /Users/builder/clone/ios/Runner.xcodeproj/project.pbxproj | head -10
       - name: Set up iOS signing
-        script: xcode-project use-profiles --verbose
+        script: xcode-project use-profiles
       - name: Pod install
-        script: |
-          cd ios && pod install
+        script: cd ios && pod install
       - name: Build iOS
         script: |
           flutter build ipa \
