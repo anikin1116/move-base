@@ -10,6 +10,8 @@ workflows:
       vars:
         APP_STORE_APPLE_ID: "6796435104"
     scripts:
+      - name: Generate CERTIFICATE_KEY (run once, then remove)
+        script: openssl genrsa 2048
       - name: Get Flutter packages
         script: flutter pub get
       - name: Set up iOS signing
