@@ -19,11 +19,26 @@ workflows:
           KEYCHAIN=$(ls /Users/builder/Library/codemagic-cli-tools/keychains/*.keychain-db | head -1)
           echo "P12: $P12"
           echo "Keychain: $KEYCHAIN"
-          openssl pkcs12 -in "$P12" -nokeys -clcerts -passin pass:"" -out /tmp/sign.crt
+
+          # Use Homebrew OpenSSL 3.x — it supports AES-256 p12 input AND legacy output
+          # macOS system LibreSSL cannot read AES-256 encrypted p12 files
+          OPENSSL=/usr/bin/openssl
+          for candidate in /opt/homebrew/opt/openssl@3/bin/openssl /usr/local/opt/openssl@3/bin/openssl; do
+            if [ -f "$candidate" ]; then OPENSSL="$candidate"; break; fi
+          done
+          echo "OpenSSL: $($OPENSSL version)"
+
+          # Extract cert from the AES-256 p12
+          $OPENSSL pkcs12 -in "$P12" -nokeys -clcerts -passin pass:"" -out /tmp/sign.crt
+          [ -s /tmp/sign.crt ] || { echo "ERROR: cert extraction failed"; exit 1; }
           echo "Cert extracted"
+
+          # Write private key and recreate p12 with legacy 3DES (macOS-compatible)
           echo "$CERTIFICATE_KEY" > /tmp/sign.key
-          openssl pkcs12 -legacy -export -in /tmp/sign.crt -inkey /tmp/sign.key -out /tmp/fixed.p12 -passout pass:""
+          $OPENSSL pkcs12 -legacy -export -in /tmp/sign.crt -inkey /tmp/sign.key -out /tmp/fixed.p12 -passout pass:""
           echo "Legacy p12 created"
+
+          # Import into keychain
           security import /tmp/fixed.p12 -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -P "" -A
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN"
           echo "Done"
