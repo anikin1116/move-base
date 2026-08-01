@@ -31,7 +31,7 @@ workflows:
           echo "P12: $P12 ($(wc -c < "$P12") bytes)"
           echo "Keychain: $KEYCHAIN"
 
-          # Try all formats to extract cert
+          # Extract cert (the .p12 is a PEM cert file in codemagic-cli-tools 0.69.0)
           if openssl pkcs12 -legacy -in "$P12" -nokeys -clcerts -passin pass:"" -out /tmp/sign.crt 2>/dev/null && [ -s /tmp/sign.crt ]; then
             echo "Cert read as PKCS12"
           elif openssl x509 -in "$P12" -inform DER -out /tmp/sign.crt 2>/dev/null && [ -s /tmp/sign.crt ]; then
@@ -42,11 +42,14 @@ workflows:
             echo "ERROR: cannot read cert"; exit 1
           fi
 
+          # Write private key
           echo "$CERTIFICATE_KEY" > /tmp/sign.key
-          openssl pkcs12 -legacy -export -in /tmp/sign.crt -inkey /tmp/sign.key -out /tmp/fixed.p12 -passout pass:""
-          echo "Legacy p12 created"
 
-          security import /tmp/fixed.p12 -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -P "" -A || true
+          # Import cert and key directly — skip p12 entirely (avoids MAC format issues)
+          security import /tmp/sign.crt -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -A || echo "Cert import warning"
+          security import /tmp/sign.key -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -A || echo "Key import warning"
+
+          # Make key accessible for codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN"
 
           echo "--- Identities ---"
