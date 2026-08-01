@@ -77,24 +77,23 @@ workflows:
           echo "=== Keychain cert SHA1 ==="
           security find-identity -v -p codesigning "$KEYCHAIN" || true
 
+          printf '%s\n' \
+            'import sys, plistlib, hashlib' \
+            'data = sys.stdin.buffer.read()' \
+            'plist = plistlib.loads(data)' \
+            'print("UUID:", plist.get("UUID", "N/A"))' \
+            'ent = plist.get("Entitlements", {})' \
+            'print("AppID:", ent.get("application-identifier", "N/A"))' \
+            'for i, cert in enumerate(plist.get("DeveloperCertificates", [])):' \
+            '    sha1 = hashlib.sha1(bytes(cert)).hexdigest().upper()' \
+            '    print("Cert", i, "SHA1:", sha1)' \
+            > /tmp/check_profiles.py
+
           echo "=== Profile cert SHA1s ==="
           for prof in "/Users/builder/Library/Developer/Xcode/UserData/Provisioning Profiles/"*.mobileprovision; do
             [ -f "$prof" ] || continue
             echo "--- $(basename "$prof") ---"
-            security cms -D -i "$prof" 2>/dev/null | python3 -c "
-import sys, plistlib, hashlib
-data = sys.stdin.buffer.read()
-try:
-    plist = plistlib.loads(data)
-    print('UUID:', plist.get('UUID', 'N/A'))
-    ent = plist.get('Entitlements', {})
-    print('AppID:', ent.get('application-identifier', 'N/A'))
-    for i, cert in enumerate(plist.get('DeveloperCertificates', [])):
-        sha1 = hashlib.sha1(bytes(cert)).hexdigest().upper()
-        print(f'  Cert {i} SHA1: {sha1}')
-except Exception as e:
-    print('ERROR:', e)
-" || echo "Failed to parse"
+            security cms -D -i "$prof" 2>/dev/null | python3 /tmp/check_profiles.py || echo "Failed to parse"
           done
 
           echo "=== Bundle IDs in xcodeproj ==="
