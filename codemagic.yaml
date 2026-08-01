@@ -26,11 +26,32 @@ workflows:
       - name: Import cert and set partition list
         script: |
           set -e
+          P12=$(ls /Users/builder/Library/Developer/Xcode/UserData/Certificates/*.p12 | head -1)
           KEYCHAIN=$(ls /Users/builder/Library/codemagic-cli-tools/keychains/*.keychain-db | head -1)
+          echo "P12: $P12 ($(wc -c < "$P12") bytes)"
           echo "Keychain: $KEYCHAIN"
-          keychain add-certificates
+
+          # Try all formats to extract cert
+          if openssl pkcs12 -legacy -in "$P12" -nokeys -clcerts -passin pass:"" -out /tmp/sign.crt 2>/dev/null && [ -s /tmp/sign.crt ]; then
+            echo "Cert read as PKCS12"
+          elif openssl x509 -in "$P12" -inform DER -out /tmp/sign.crt 2>/dev/null && [ -s /tmp/sign.crt ]; then
+            echo "Cert read as DER"
+          elif openssl x509 -in "$P12" -inform PEM -out /tmp/sign.crt 2>/dev/null && [ -s /tmp/sign.crt ]; then
+            echo "Cert read as PEM"
+          else
+            echo "ERROR: cannot read cert"; exit 1
+          fi
+
+          echo "$CERTIFICATE_KEY" > /tmp/sign.key
+          openssl pkcs12 -legacy -export -in /tmp/sign.crt -inkey /tmp/sign.key -out /tmp/fixed.p12 -passout pass:""
+          echo "Legacy p12 created"
+
+          security import /tmp/fixed.p12 -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -P "" -A || true
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN"
-          echo "Done"
+
+          echo "--- Identities ---"
+          security find-identity -v -p codesigning "$KEYCHAIN" || true
+          echo "---"
       - name: Set up iOS signing
         script: xcode-project use-profiles
       - name: Build iOS
