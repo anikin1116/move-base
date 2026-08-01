@@ -52,8 +52,13 @@ workflows:
           # Make key accessible for codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN"
 
+          # Add keychain to search list so xcode-project use-profiles can find it
+          security list-keychains -s "$KEYCHAIN" ~/Library/Keychains/login.keychain-db
+          security default-keychain -s "$KEYCHAIN"
+
           echo "--- Identities ---"
           security find-identity -v -p codesigning "$KEYCHAIN" || true
+          security find-identity -v -p codesigning || true
           echo "---"
       - name: Set up iOS signing
         script: xcode-project use-profiles
