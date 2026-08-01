@@ -5,6 +5,7 @@ import 'generated/l10n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'firebase_options.dart';
 import 'theme/app_theme.dart';
 import 'services/auth_service.dart';
@@ -64,12 +65,14 @@ class MoveBaseApp extends StatefulWidget {
 }
 
 class _MoveBaseAppState extends State<MoveBaseApp> with WidgetsBindingObserver {
-  DateTime? _backgroundedAt;
+  static const _bgKey = 'movebase_bg_at';
+  static const _timeoutMinutes = 30;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _checkSessionTimeout();
   }
 
   @override
@@ -78,17 +81,35 @@ class _MoveBaseAppState extends State<MoveBaseApp> with WidgetsBindingObserver {
     super.dispose();
   }
 
+  Future<void> _checkSessionTimeout() async {
+    final prefs = await SharedPreferences.getInstance();
+    final storedMs = prefs.getInt(_bgKey);
+    if (storedMs == null) return;
+    final elapsed = DateTime.now().millisecondsSinceEpoch - storedMs;
+    if (elapsed >= _timeoutMinutes * 60 * 1000) {
+      await prefs.remove(_bgKey);
+      await FirebaseAuth.instance.signOut();
+      _router.go('/login');
+    }
+  }
+
   @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused) {
-      _backgroundedAt = DateTime.now();
+  void didChangeAppLifecycleState(AppLifecycleState state) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      await prefs.setInt(_bgKey, DateTime.now().millisecondsSinceEpoch);
     } else if (state == AppLifecycleState.resumed) {
-      final bg = _backgroundedAt;
-      if (bg != null &&
-          DateTime.now().difference(bg).inMinutes >= 30) {
-        _backgroundedAt = null;
-        FirebaseAuth.instance.signOut();
-        _router.go('/login');
+      final storedMs = prefs.getInt(_bgKey);
+      if (storedMs != null) {
+        final elapsed = DateTime.now().millisecondsSinceEpoch - storedMs;
+        if (elapsed >= _timeoutMinutes * 60 * 1000) {
+          await prefs.remove(_bgKey);
+          await FirebaseAuth.instance.signOut();
+          _router.go('/login');
+        } else {
+          await prefs.remove(_bgKey);
+        }
       }
     }
   }

@@ -71,33 +71,77 @@ class _HomeScreenState extends State<HomeScreen> {
     return '${km.toStringAsFixed(1)} km';
   }
 
+  void _showCrashLogDialog() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        contentPadding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Image.asset(
+              'assets/images/logo3kleinNew.png',
+              width: 72,
+              height: 72,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) =>
+                  const Icon(Icons.apps, size: 72, color: AppColors.navy),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Möchtest du zu CrashLog wechseln?',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Abbrechen'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.navy,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _openCrashLog();
+            },
+            child: const Text('Öffnen'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _openCrashLog() async {
-    if (!kIsWeb && Platform.isAndroid) {
-      final appUri = Uri.parse(
-          'intent://#Intent;package=com.mycompany.unfallbericht;'
-          'action=android.intent.action.MAIN;'
-          'category=android.intent.category.LAUNCHER;end');
-      if (await canLaunchUrl(appUri)) {
-        await launchUrl(appUri);
-        return;
-      }
-      final market = Uri.parse('market://details?id=com.mycompany.unfallbericht');
-      if (!await launchUrl(market, mode: LaunchMode.externalApplication)) {
+    if (kIsWeb) return;
+    // Try crashlog:// custom scheme (works on both Android and iOS when installed)
+    try {
+      await launchUrl(Uri.parse('crashlog://'),
+          mode: LaunchMode.externalApplication);
+      return;
+    } catch (_) {}
+    // App not installed — go to store
+    if (Platform.isAndroid) {
+      try {
         await launchUrl(
-          Uri.parse('https://play.google.com/store/apps/details?id=com.mycompany.unfallbericht'),
-          mode: LaunchMode.externalApplication,
-        );
-      }
-    } else if (!kIsWeb && Platform.isIOS) {
-      final appUri = Uri.parse('crashlog://');
-      if (await canLaunchUrl(appUri)) {
-        await launchUrl(appUri);
+            Uri.parse('market://details?id=com.mycompany.unfallbericht'),
+            mode: LaunchMode.externalApplication);
         return;
-      }
+      } catch (_) {}
       await launchUrl(
-        Uri.parse('https://apps.apple.com/app/id19209005258'),
-        mode: LaunchMode.externalApplication,
-      );
+          Uri.parse('https://play.google.com/store/apps/details?id=com.mycompany.unfallbericht'),
+          mode: LaunchMode.externalApplication);
+    } else if (Platform.isIOS) {
+      await launchUrl(
+          Uri.parse('https://apps.apple.com/app/id19209005258'),
+          mode: LaunchMode.externalApplication);
     }
   }
 
@@ -379,7 +423,7 @@ class _HomeScreenState extends State<HomeScreen> {
             const SizedBox(width: 10),
             // CrashLog Logo — tappable
             GestureDetector(
-              onTap: _openCrashLog,
+              onTap: _showCrashLogDialog,
               child: Image.asset(
                 'assets/images/logo3kleinNew.png',
                 width: 52,
