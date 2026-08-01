@@ -23,24 +23,12 @@ workflows:
             --certificate-key @env:CERTIFICATE_KEY
       - name: Initialize keychain
         script: keychain initialize
-      - name: Fix p12 and set partition list
+      - name: Import cert and set partition list
         script: |
           set -e
-          P12=$(ls /Users/builder/Library/Developer/Xcode/UserData/Certificates/*.p12 | head -1)
           KEYCHAIN=$(ls /Users/builder/Library/codemagic-cli-tools/keychains/*.keychain-db | head -1)
-          echo "P12: $P12"
           echo "Keychain: $KEYCHAIN"
-          OPENSSL=/usr/bin/openssl
-          for candidate in /opt/homebrew/opt/openssl@3/bin/openssl /usr/local/opt/openssl@3/bin/openssl; do
-            if [ -f "$candidate" ]; then OPENSSL="$candidate"; break; fi
-          done
-          echo "OpenSSL: $($OPENSSL version)"
-          $OPENSSL pkcs12 -in "$P12" -nokeys -clcerts -passin pass:"" -out /tmp/sign.crt
-          [ -s /tmp/sign.crt ] || { echo "ERROR: cert extraction failed"; exit 1; }
-          echo "$CERTIFICATE_KEY" > /tmp/sign.key
-          $OPENSSL pkcs12 -legacy -export -in /tmp/sign.crt -inkey /tmp/sign.key -out /tmp/fixed.p12 -passout pass:""
-          echo "Legacy p12 created"
-          security import /tmp/fixed.p12 -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -P "" -A
+          keychain add-certificates
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN"
           echo "Done"
       - name: Set up iOS signing
