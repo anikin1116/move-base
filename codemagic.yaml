@@ -100,6 +100,9 @@ workflows:
           grep "PRODUCT_BUNDLE_IDENTIFIER" /Users/builder/clone/ios/Runner.xcodeproj/project.pbxproj | head -10
       - name: Set up iOS signing
         script: xcode-project use-profiles --verbose
+      - name: Pod install
+        script: |
+          cd ios && pod install
       - name: Build iOS
         script: |
           flutter build ipa \
