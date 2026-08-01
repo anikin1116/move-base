@@ -42,26 +42,65 @@ workflows:
             echo "ERROR: cannot read cert"; exit 1
           fi
 
+          echo "Cert SHA1: $(openssl x509 -in /tmp/sign.crt -fingerprint -noout | sed 's/.*Fingerprint=//;s/://g')"
+
           # Write private key
           echo "$CERTIFICATE_KEY" > /tmp/sign.key
 
-          # Import cert and key directly — skip p12 entirely (avoids MAC format issues)
-          security import /tmp/sign.crt -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -A || echo "Cert import warning"
-          security import /tmp/sign.key -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -A || echo "Key import warning"
+          # Try PKCS12 with SHA-1 MAC (traditional format macOS security import expects)
+          if openssl pkcs12 -export -legacy \
+               -in /tmp/sign.crt -inkey /tmp/sign.key \
+               -out /tmp/fixed.p12 -passout pass:"" \
+               -macalg sha1 -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES 2>&1 \
+             && security import /tmp/fixed.p12 -k "$KEYCHAIN" -P "" \
+               -T /usr/bin/codesign -T /usr/bin/security -A 2>&1; then
+            echo "PKCS12 import succeeded"
+          else
+            echo "PKCS12 import failed, falling back to separate cert+key import"
+            security import /tmp/sign.crt -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -A || echo "Cert import warning"
+            security import /tmp/sign.key -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -A || echo "Key import warning"
+          fi
 
           # Make key accessible for codesign
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN"
 
-          # Add keychain to search list so xcode-project use-profiles can find it
+          # Add keychain to search list
           security list-keychains -s "$KEYCHAIN" ~/Library/Keychains/login.keychain-db
           security default-keychain -s "$KEYCHAIN"
 
-          echo "--- Identities ---"
+          echo "--- Identities in keychain ---"
           security find-identity -v -p codesigning "$KEYCHAIN" || true
-          security find-identity -v -p codesigning || true
           echo "---"
+      - name: Diagnose signing match
+        script: |
+          KEYCHAIN=$(ls /Users/builder/Library/codemagic-cli-tools/keychains/*.keychain-db | head -1)
+          echo "=== Keychain cert SHA1 ==="
+          security find-identity -v -p codesigning "$KEYCHAIN" || true
+
+          echo "=== Profile cert SHA1s ==="
+          for prof in "/Users/builder/Library/Developer/Xcode/UserData/Provisioning Profiles/"*.mobileprovision; do
+            [ -f "$prof" ] || continue
+            echo "--- $(basename "$prof") ---"
+            security cms -D -i "$prof" 2>/dev/null | python3 -c "
+import sys, plistlib, hashlib
+data = sys.stdin.buffer.read()
+try:
+    plist = plistlib.loads(data)
+    print('UUID:', plist.get('UUID', 'N/A'))
+    ent = plist.get('Entitlements', {})
+    print('AppID:', ent.get('application-identifier', 'N/A'))
+    for i, cert in enumerate(plist.get('DeveloperCertificates', [])):
+        sha1 = hashlib.sha1(bytes(cert)).hexdigest().upper()
+        print(f'  Cert {i} SHA1: {sha1}')
+except Exception as e:
+    print('ERROR:', e)
+" || echo "Failed to parse"
+          done
+
+          echo "=== Bundle IDs in xcodeproj ==="
+          grep "PRODUCT_BUNDLE_IDENTIFIER" /Users/builder/clone/ios/Runner.xcodeproj/project.pbxproj | head -10
       - name: Set up iOS signing
-        script: xcode-project use-profiles
+        script: xcode-project use-profiles --verbose
       - name: Build iOS
         script: |
           flutter build ipa \
