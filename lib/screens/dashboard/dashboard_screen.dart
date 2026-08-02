@@ -201,7 +201,7 @@ class _DashboardContent extends StatelessWidget {
 
         // Klick-Statistiken
         if (partner.klicks.isNotEmpty) ...[
-          Text(l10n.statistics,
+          Text('Statistiken',
               style: const TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.bold,

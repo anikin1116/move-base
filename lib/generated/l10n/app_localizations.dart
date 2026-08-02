@@ -422,8 +422,6 @@ abstract class AppLocalizations {
   /// **'Account & Abo'**
   String get accountManagement;
 
-  String get statistics;
-
   /// No description provided for @accountManagementNote.
   ///
   /// In de, this message translates to:

@@ -175,9 +175,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accountManagement => 'Account & Subscription';
 
   @override
-  String get statistics => 'Statistics';
-
-  @override
   String get accountManagementNote =>
       'Cancel subscription, change package or delete your account — available at the CrashLog website.';
 
