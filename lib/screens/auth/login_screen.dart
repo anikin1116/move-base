@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
@@ -81,7 +82,8 @@ class _LoginScreenState extends State<LoginScreen> {
           SnackBar(content: Text(l10n.verificationEmailSent)),
         );
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('resendVerification error: $e');
     } finally {
       if (mounted) setState(() => _resendLoading = false);
     }
