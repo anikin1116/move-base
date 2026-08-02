@@ -142,7 +142,7 @@ class DatenschutzScreen extends StatelessWidget {
           heading: '5. Speicherdauer',
           paragraphs: [
             'Nach Kündigung eines Partner-Abonnements werden Ihre Daten nach 30 Tagen gelöscht.\n\nIP-Adressen aus Server-Logs werden nach 7 Tagen automatisch gelöscht.',
-            'Letzte Aktualisierung: 31.07.2026',
+            'Letzte Aktualisierung: 02.08.2026',
           ],
         ),
       ],
@@ -184,14 +184,14 @@ class ImpressumScreen extends StatelessWidget {
         LegalSection(
           heading: 'Haftungsausschluss',
           paragraphs: [
-            'Die Inhalte dieser App wurden mit größtmöglicher Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte übernehmen wir keine Gewähr. Verbraucher haben die Möglichkeit, Beschwerden an die Online-Streitbeilegungsplattform der EU zu richten: ec.europa.eu/odr.',
+            'Die Inhalte dieser App wurden mit größtmöglicher Sorgfalt erstellt. Für die Richtigkeit, Vollständigkeit und Aktualität der Inhalte übernehmen wir keine Gewähr. Verbraucher haben die Möglichkeit, Beschwerden an die Online-Streitbeilegungsplattform der EU zu richten: https://ec.europa.eu/odr',
           ],
         ),
         LegalSection(
           heading: 'Urheberrecht',
           paragraphs: [
             'Die durch die Seitenbetreiber erstellten Inhalte und Werke auf diesen Seiten unterliegen dem österreichischen und deutschen Urheberrecht.',
-            'Letzte Aktualisierung: 31.07.2026',
+            'Letzte Aktualisierung: 02.08.2026',
           ],
         ),
       ],
@@ -210,7 +210,7 @@ class AgbScreen extends StatelessWidget {
       title: 'AGB',
       sections: [
         LegalSection(
-          paragraphs: ['CrashLog Partner-Abonnement – Stand: 31.07.2026'],
+          paragraphs: ['MoveBase Partner-Abonnement – Stand: 02.08.2026'],
         ),
         LegalSection(
           heading: '§ 1 Geltungsbereich',
@@ -247,7 +247,7 @@ class AgbScreen extends StatelessWidget {
         LegalSection(
           heading: '§ 5 Laufzeit & Kündigung',
           paragraphs: [
-            'Monatliche Abos: Kündigung 7 Tage vor Ende der Laufzeit.\n\nJahresabos: Kündigung 30 Tage vor Ende der Laufzeit.\n\nWiderruf & Rücktritt: Da sich dieses Angebot ausschließlich an Unternehmer richtet, ist ein 14-tägiges Widerrufsrecht ausgeschlossen. Ein Rücktritt vom Vertrag ist nach erfolgter Freischaltung des Partner-Eintrags nicht mehr möglich.\n\nKündigung im Partner-Dashboard oder per E-Mail an office@crashlog.eu.',
+            'Monatliche Abos: Kündigung 7 Tage vor Ende der Laufzeit.\n\nJahresabos: Kündigung 30 Tage vor Ende der Laufzeit.\n\nWiderruf & Rücktritt: Da sich dieses Angebot ausschließlich an Unternehmer richtet, ist ein 14-tägiges Widerrufsrecht ausgeschlossen. Ein Rücktritt vom Vertrag ist nach erfolgter Freischaltung des Partner-Eintrags nicht mehr möglich.\n\nKündigung im Partner-Dashboard oder per E-Mail an info@crashlog.eu.',
           ],
         ),
         LegalSection(
@@ -265,8 +265,8 @@ class AgbScreen extends StatelessWidget {
         LegalSection(
           heading: '§ 8 Anwendbares Recht & Gerichtsstand',
           paragraphs: [
-            'Es gilt österreichisches Recht. Gerichtsstand ist Bezirksgericht Neulengbach.',
-            'Stand: 05.05.2026 · Robert Bös / CrashLog & MoveBase, Asperhofen',
+            'Es gilt österreichisches Recht unter Ausschluss des UN-Kaufrechts. Gerichtsstand ist das Bezirksgericht Neulengbach.',
+            'Stand: 02.08.2026 · Robert Bös / CrashLog & MoveBase, Asperhofen',
           ],
         ),
       ],
