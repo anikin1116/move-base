@@ -155,6 +155,11 @@ class _DashboardContent extends StatelessWidget {
           ],
         ),
 
+        const SizedBox(height: 20),
+
+        // Profil-Vollständigkeit
+        _ProfileCompleteness(partner: partner),
+
         const SizedBox(height: 24),
 
         // Abo-Aktionen
@@ -416,6 +421,93 @@ class _StatsRow extends StatelessWidget {
           ),
         );
       }).toList(),
+    );
+  }
+}
+
+class _ProfileCompleteness extends StatelessWidget {
+  final Partner partner;
+  const _ProfileCompleteness({required this.partner});
+
+  List<String> get _missing {
+    final items = <String>[];
+    if (partner.logo.isEmpty) items.add('Logo');
+    if (partner.leistungen.length < 30) items.add('Leistungsbeschreibung');
+    if (partner.oeffnungszeiten.isEmpty) items.add('Öffnungszeiten');
+    if (partner.website.isEmpty) items.add('Website');
+    if (partner.email.isEmpty) items.add('E-Mail');
+    if (partner.photos.isEmpty) items.add('Fotos');
+    return items;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final total = 6;
+    final done = total - _missing.length;
+    final pct = done / total;
+    final isComplete = _missing.isEmpty;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Colors.grey.shade200),
+        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 6)],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(isComplete ? Icons.check_circle : Icons.edit_note,
+                size: 18,
+                color: isComplete ? Colors.green : AppColors.orange),
+            const SizedBox(width: 8),
+            Text('Profil-Vollständigkeit',
+                style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.navy,
+                    fontSize: 13)),
+            const Spacer(),
+            Text('$done/$total',
+                style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: isComplete ? Colors.green : AppColors.orange,
+                    fontSize: 13)),
+          ]),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: pct,
+              minHeight: 6,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation(
+                  isComplete ? Colors.green : AppColors.orange),
+            ),
+          ),
+          if (_missing.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 6,
+              runSpacing: 4,
+              children: _missing
+                  .map((m) => Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 8, vertical: 3),
+                        decoration: BoxDecoration(
+                          color: AppColors.orange.withOpacity(0.09),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(m,
+                            style: const TextStyle(
+                                fontSize: 11, color: AppColors.orange)),
+                      ))
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }

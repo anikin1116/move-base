@@ -1,4 +1,6 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:flutter/foundation.dart';
 import '../models/partner.dart';
 
 class PartnerService {
@@ -45,6 +47,13 @@ class PartnerService {
   }
 
   Future<void> trackKlick(String partnerId, String field) async {
-    await _col.doc(partnerId).update({'klicks.$field': FieldValue.increment(1)});
+    try {
+      if (FirebaseAuth.instance.currentUser == null) {
+        await FirebaseAuth.instance.signInAnonymously();
+      }
+      await _col.doc(partnerId).update({'klicks.$field': FieldValue.increment(1)});
+    } catch (e) {
+      debugPrint('trackKlick($field) error: $e');
+    }
   }
 }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../generated/l10n/app_localizations.dart';
 import '../../models/partner.dart';
@@ -66,6 +67,16 @@ class _DetailView extends StatelessWidget {
     var url = partner.website;
     if (!url.startsWith('http')) url = 'https://$url';
     return launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  }
+
+  void _share() {
+    final lines = [
+      partner.name,
+      partner.fullAddress,
+      if (partner.telefon.isNotEmpty) '📞 ${partner.telefon}',
+      if (partner.website.isNotEmpty) '🌐 ${partner.website}',
+    ];
+    Share.share(lines.join('\n'));
   }
 
   Future<void> _maps() {
@@ -286,6 +297,11 @@ class _DetailView extends StatelessWidget {
             label: l10n.email,
             onTap: _email,
           ),
+        _ActionBtn(
+          icon: Icons.share_outlined,
+          label: 'Teilen',
+          onTap: _share,
+        ),
       ],
     );
   }
