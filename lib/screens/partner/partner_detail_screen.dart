@@ -196,12 +196,30 @@ class _DetailView extends StatelessWidget {
   }
 
   Widget _buildAppBar(BuildContext context) {
+    final backBtn = Padding(
+      padding: const EdgeInsets.all(8),
+      child: InkWell(
+        onTap: () => Navigator.of(context).pop(),
+        borderRadius: BorderRadius.circular(20),
+        child: Container(
+          width: 36,
+          height: 36,
+          decoration: const BoxDecoration(
+            color: AppColors.orange,
+            shape: BoxShape.circle,
+          ),
+          child: const Icon(Icons.arrow_back, color: Colors.white, size: 20),
+        ),
+      ),
+    );
+
     if (partner.logo.isNotEmpty) {
       return SliverAppBar(
         expandedHeight: 220,
         pinned: true,
         backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
+        automaticallyImplyLeading: false,
+        leading: backBtn,
         flexibleSpace: FlexibleSpaceBar(
           background: Image.network(
             partner.logo,
@@ -215,6 +233,8 @@ class _DetailView extends StatelessWidget {
       pinned: true,
       backgroundColor: AppColors.navy,
       expandedHeight: 80,
+      automaticallyImplyLeading: false,
+      leading: backBtn,
       flexibleSpace: const FlexibleSpaceBar(),
     );
   }
