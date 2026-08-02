@@ -546,6 +546,12 @@ class _HomeScreenState extends State<HomeScreen> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
+        if (snapshot.hasError) {
+          return Center(
+            child: Text('Fehler: ${snapshot.error}',
+                style: const TextStyle(color: Colors.red, fontSize: 12)),
+          );
+        }
         final partners = List<Partner>.from(snapshot.data ?? []);
         if (_position != null) {
           partners.sort((a, b) {
