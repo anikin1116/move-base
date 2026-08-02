@@ -138,11 +138,14 @@ class _PotholeGameState extends State<PotholeGame> {
                 ),
               );
             }),
-            // Car
+            // Car (nach oben gedreht = Fahrtrichtung)
             Positioned(
               left: laneW * _carLane + laneW / 2 - 22,
               bottom: h * 0.08,
-              child: const Text('🚙', style: TextStyle(fontSize: 44)),
+              child: Transform.rotate(
+                angle: -pi / 2,
+                child: const Text('🚙', style: TextStyle(fontSize: 44)),
+              ),
             ),
             // Overlays
             if (!_running && !_gameOver) _overlay(

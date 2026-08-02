@@ -32,6 +32,11 @@ class _FuelGameState extends State<FuelGame>
         .then((p) => setState(() => _best = p.getInt('hs_fuel') ?? 0));
   }
 
+  void _setSpeed() {
+    _ctrl.duration =
+        Duration(milliseconds: max(400, 1800 - _round * 250));
+  }
+
   void _start() {
     setState(() {
       _running = true;
@@ -40,6 +45,7 @@ class _FuelGameState extends State<FuelGame>
       _round = 0;
       _feedback = '';
     });
+    _setSpeed();
     _ctrl.repeat(reverse: true);
   }
 
@@ -72,6 +78,7 @@ class _FuelGameState extends State<FuelGame>
       Future.delayed(const Duration(milliseconds: 1600), () {
         if (!mounted) return;
         setState(() => _stopped = false);
+        _setSpeed();
         _ctrl.repeat(reverse: true);
       });
     }

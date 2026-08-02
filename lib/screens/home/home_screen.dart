@@ -29,8 +29,6 @@ class _HomeScreenState extends State<HomeScreen> {
   final _partnerService = PartnerService();
   String? _selectedCategory;
   Position? _position;
-  int _logoTaps = 0;
-  DateTime? _lastLogoTap;
 
   @override
   void initState() {
@@ -74,19 +72,9 @@ class _HomeScreenState extends State<HomeScreen> {
     return '${km.toStringAsFixed(1)} km';
   }
 
-  void _handleLogoTap() {
-    final now = DateTime.now();
-    if (_lastLogoTap != null &&
-        now.difference(_lastLogoTap!).inSeconds > 2) {
-      _logoTaps = 0;
-    }
-    _lastLogoTap = now;
-    _logoTaps++;
-    if (_logoTaps >= 5) {
-      _logoTaps = 0;
-      Navigator.push(
-          context, MaterialPageRoute(builder: (_) => const ArcadeScreen()));
-    }
+  void _openArcade() {
+    Navigator.push(
+        context, MaterialPageRoute(builder: (_) => const ArcadeScreen()));
   }
 
   void _showCrashLogDialog() {
@@ -422,12 +410,12 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         title: Row(
           children: [
-            // MoveBase Logo — 5x tippen öffnet Arcade
+            // MoveBase Logo — lange drücken öffnet Arcade
             GestureDetector(
-              onTap: _handleLogoTap,
+              onLongPress: _openArcade,
               behavior: HitTestBehavior.opaque,
               child: Padding(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(8),
                 child: Image.asset(
                   'assets/images/logo1.png',
                   width: 52,
