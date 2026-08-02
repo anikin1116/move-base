@@ -13,6 +13,8 @@ workflows:
     scripts:
       - name: Get Flutter packages
         script: flutter pub get
+      - name: Initialize keychain
+        script: keychain initialize
       - name: Fetch signing files
         script: |
           app-store-connect fetch-signing-files com.mycompany.moveBase \
@@ -21,41 +23,8 @@ workflows:
             --key-id $APP_STORE_CONNECT_KEY_IDENTIFIER \
             --private-key @env:AUTH_KEY \
             --certificate-key @env:CERTIFICATE_KEY
-      - name: Initialize keychain
-        script: keychain initialize
-      - name: Import cert and set partition list
-        script: |
-          set -e
-          P12=$(ls /Users/builder/Library/Developer/Xcode/UserData/Certificates/*.p12 | head -1)
-          KEYCHAIN=$(ls /Users/builder/Library/codemagic-cli-tools/keychains/*.keychain-db | head -1)
-
-          if openssl pkcs12 -legacy -in "$P12" -nokeys -clcerts -passin pass:"" -out /tmp/sign.crt 2>/dev/null && [ -s /tmp/sign.crt ]; then
-            echo "Cert read as PKCS12"
-          elif openssl x509 -in "$P12" -inform DER -out /tmp/sign.crt 2>/dev/null && [ -s /tmp/sign.crt ]; then
-            echo "Cert read as DER"
-          elif openssl x509 -in "$P12" -inform PEM -out /tmp/sign.crt 2>/dev/null && [ -s /tmp/sign.crt ]; then
-            echo "Cert read as PEM"
-          else
-            echo "ERROR: cannot read cert"; exit 1
-          fi
-
-          echo "$CERTIFICATE_KEY" > /tmp/sign.key
-
-          if openssl pkcs12 -export -legacy \
-               -in /tmp/sign.crt -inkey /tmp/sign.key \
-               -out /tmp/fixed.p12 -passout pass:"" \
-               -macalg sha1 -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES 2>&1 \
-             && security import /tmp/fixed.p12 -k "$KEYCHAIN" -P "" \
-               -T /usr/bin/codesign -T /usr/bin/security -A 2>&1; then
-            echo "PKCS12 import succeeded"
-          else
-            security import /tmp/sign.crt -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -A || true
-            security import /tmp/sign.key -k "$KEYCHAIN" -T /usr/bin/codesign -T /usr/bin/security -A || true
-          fi
-
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "" "$KEYCHAIN"
-          security list-keychains -s "$KEYCHAIN" ~/Library/Keychains/login.keychain-db
-          security default-keychain -s "$KEYCHAIN"
+      - name: Add certificates to keychain
+        script: keychain add-certificates
       - name: Set up iOS signing
         script: xcode-project use-profiles
       - name: Pod install
