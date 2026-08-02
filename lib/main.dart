@@ -89,7 +89,7 @@ class _MoveBaseAppState extends State<MoveBaseApp> with WidgetsBindingObserver {
     if (elapsed >= _timeoutMinutes * 60 * 1000) {
       await prefs.remove(_bgKey);
       await FirebaseAuth.instance.signOut();
-      _router.go('/login');
+      _router.go('/');
     }
   }
 
@@ -106,7 +106,7 @@ class _MoveBaseAppState extends State<MoveBaseApp> with WidgetsBindingObserver {
         if (elapsed >= _timeoutMinutes * 60 * 1000) {
           await prefs.remove(_bgKey);
           await FirebaseAuth.instance.signOut();
-          _router.go('/login');
+          _router.go('/');
         } else {
           await prefs.remove(_bgKey);
         }
