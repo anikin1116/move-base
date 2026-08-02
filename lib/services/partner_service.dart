@@ -1,10 +1,10 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/foundation.dart';
 import '../models/partner.dart';
 
 class PartnerService {
-  final _col = FirebaseFirestore.instance.collection('companies');
+  final _col    = FirebaseFirestore.instance.collection('companies');
+  final _clicks = FirebaseFirestore.instance.collection('partner_clicks');
 
   Stream<List<Partner>> getPartners({String? category}) {
     Query q = _col.where('aktiv', isEqualTo: true);
@@ -48,12 +48,20 @@ class PartnerService {
 
   Future<void> trackKlick(String partnerId, String field) async {
     try {
-      if (FirebaseAuth.instance.currentUser == null) {
-        await FirebaseAuth.instance.signInAnonymously();
-      }
-      await _col.doc(partnerId).update({'klicks.$field': FieldValue.increment(1)});
+      await _clicks.doc(partnerId).set(
+        {field: FieldValue.increment(1)},
+        SetOptions(merge: true),
+      );
     } catch (e) {
       debugPrint('trackKlick($field) error: $e');
     }
+  }
+
+  Stream<Map<String, int>> watchKlicks(String partnerId) {
+    return _clicks.doc(partnerId).snapshots().map((doc) {
+      if (!doc.exists) return const <String, int>{};
+      final d = doc.data() as Map<String, dynamic>? ?? {};
+      return d.map((k, v) => MapEntry(k, (v as num? ?? 0).toInt()));
+    });
   }
 }

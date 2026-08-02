@@ -205,16 +205,26 @@ class _DashboardContent extends StatelessWidget {
         const SizedBox(height: 24),
 
         // Klick-Statistiken
-        if (partner.klicks.isNotEmpty) ...[
-          Text('Statistiken',
-              style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                  color: AppColors.navy)),
-          const SizedBox(height: 12),
-          _StatsRow(klicks: partner.klicks),
-          const SizedBox(height: 24),
-        ],
+        StreamBuilder<Map<String, int>>(
+          stream: PartnerService().watchKlicks(partner.id),
+          builder: (context, snap) {
+            final klicks = snap.data ?? {};
+            if (klicks.isEmpty) return const SizedBox.shrink();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text('Statistiken',
+                    style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.navy)),
+                const SizedBox(height: 12),
+                _StatsRow(klicks: klicks),
+                const SizedBox(height: 24),
+              ],
+            );
+          },
+        ),
 
         OutlinedButton.icon(
           icon: const Icon(Icons.edit_outlined, color: AppColors.navy),
