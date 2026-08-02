@@ -16,6 +16,7 @@ import '../../widgets/partner_card.dart';
 import '../../widgets/category_chip.dart';
 import '../../utils/seed_data.dart';
 import '../../utils/category_utils.dart';
+import '../arcade/arcade_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -28,6 +29,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final _partnerService = PartnerService();
   String? _selectedCategory;
   Position? _position;
+  int _logoTaps = 0;
+  DateTime? _lastLogoTap;
 
   @override
   void initState() {
@@ -69,6 +72,21 @@ class _HomeScreenState extends State<HomeScreen> {
     if (km == null) return null;
     if (km < 1) return '${(km * 1000).round()} m';
     return '${km.toStringAsFixed(1)} km';
+  }
+
+  void _handleLogoTap() {
+    final now = DateTime.now();
+    if (_lastLogoTap != null &&
+        now.difference(_lastLogoTap!).inSeconds > 2) {
+      _logoTaps = 0;
+    }
+    _lastLogoTap = now;
+    _logoTaps++;
+    if (_logoTaps >= 5) {
+      _logoTaps = 0;
+      Navigator.push(
+          context, MaterialPageRoute(builder: (_) => const ArcadeScreen()));
+    }
   }
 
   void _showCrashLogDialog() {
@@ -404,18 +422,21 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         title: Row(
           children: [
-            // MoveBase Logo
-            Image.asset(
-              'assets/images/logo1.png',
-              width: 52,
-              height: 52,
-              fit: BoxFit.contain,
-              errorBuilder: (_, __, ___) => const Text(
-                'MB',
-                style: TextStyle(
-                    color: AppColors.navy,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16),
+            // MoveBase Logo — 5x tippen öffnet Arcade
+            GestureDetector(
+              onTap: _handleLogoTap,
+              child: Image.asset(
+                'assets/images/logo1.png',
+                width: 52,
+                height: 52,
+                fit: BoxFit.contain,
+                errorBuilder: (_, __, ___) => const Text(
+                  'MB',
+                  style: TextStyle(
+                      color: AppColors.navy,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16),
+                ),
               ),
             ),
             const SizedBox(width: 10),
