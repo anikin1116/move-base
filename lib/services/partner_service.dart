@@ -9,7 +9,14 @@ class PartnerService {
   Stream<List<Partner>> getPartners({String? category}) {
     Query q = _col.where('aktiv', isEqualTo: true);
     return q.snapshots().map((s) {
-      var partners = s.docs.map(Partner.fromFirestore).toList();
+      var partners = <Partner>[];
+      for (final doc in s.docs) {
+        try {
+          partners.add(Partner.fromFirestore(doc));
+        } catch (e) {
+          debugPrint('Partner.fromFirestore error [${doc.id}]: $e');
+        }
+      }
       if (category != null) {
         partners = partners
             .where((p) =>
