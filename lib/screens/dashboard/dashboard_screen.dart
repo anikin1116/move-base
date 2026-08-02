@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
@@ -164,14 +165,26 @@ class _DashboardContent extends StatelessWidget {
 
         // Abo-Aktionen
         if (!partner.aktiv)
-          _ActionCard(
-            icon: Icons.payment,
-            title: l10n.subscriptionNotActive,
-            subtitle: l10n.subscriptionActiveInfo,
-            buttonLabel: l10n.subscribeNow,
-            buttonColor: AppColors.orange,
-            onTap: () => _openCheckout(context),
-          )
+          Platform.isIOS
+              ? _ActionCard(
+                  icon: Icons.payment,
+                  title: l10n.subscriptionNotActive,
+                  subtitle: 'Abonnement über unsere Website abschließen.',
+                  buttonLabel: 'crashlog.eu öffnen →',
+                  buttonColor: AppColors.orange,
+                  onTap: () => launchUrl(
+                    Uri.parse('https://crashlog.eu/portal/login'),
+                    mode: LaunchMode.externalApplication,
+                  ),
+                )
+              : _ActionCard(
+                  icon: Icons.payment,
+                  title: l10n.subscriptionNotActive,
+                  subtitle: l10n.subscriptionActiveInfo,
+                  buttonLabel: l10n.subscribeNow,
+                  buttonColor: AppColors.orange,
+                  onTap: () => _openCheckout(context),
+                )
         else
           _ActionCard(
             icon: Icons.workspace_premium,
