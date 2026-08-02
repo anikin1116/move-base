@@ -547,10 +547,7 @@ class _HomeScreenState extends State<HomeScreen> {
           return const Center(child: CircularProgressIndicator());
         }
         if (snapshot.hasError) {
-          return Center(
-            child: Text('Fehler: ${snapshot.error}',
-                style: const TextStyle(color: Colors.red, fontSize: 12)),
-          );
+          return const Center(child: CircularProgressIndicator());
         }
         final partners = List<Partner>.from(snapshot.data ?? []);
         if (_position != null) {
