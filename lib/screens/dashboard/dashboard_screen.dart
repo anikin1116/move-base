@@ -219,7 +219,7 @@ class _DashboardContent extends StatelessWidget {
 
         // Klick-Statistiken
         StreamBuilder<Map<String, int>>(
-          stream: PartnerService().watchKlicks(partner.name),
+          stream: PartnerService().watchKlicks(partner.id),
           builder: (context, snap) {
             final klicks = snap.data ?? {};
             if (klicks.isEmpty) return const SizedBox.shrink();
