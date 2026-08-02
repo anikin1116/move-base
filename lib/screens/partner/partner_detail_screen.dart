@@ -6,15 +6,33 @@ import '../../services/partner_service.dart';
 import '../../theme/app_theme.dart';
 import '../../utils/category_utils.dart';
 
-class PartnerDetailScreen extends StatelessWidget {
+class PartnerDetailScreen extends StatefulWidget {
   final String partnerId;
   const PartnerDetailScreen({super.key, required this.partnerId});
+
+  @override
+  State<PartnerDetailScreen> createState() => _PartnerDetailScreenState();
+}
+
+class _PartnerDetailScreenState extends State<PartnerDetailScreen> {
+  late final Future<Partner?> _future;
+
+  @override
+  void initState() {
+    super.initState();
+    _future = PartnerService().getPartner(widget.partnerId).then((p) {
+      if (p != null) {
+        PartnerService().trackKlick(widget.partnerId, 'aufrufe');
+      }
+      return p;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
     return FutureBuilder<Partner?>(
-      future: PartnerService().getPartner(partnerId),
+      future: _future,
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Scaffold(body: Center(child: CircularProgressIndicator()));
@@ -33,9 +51,18 @@ class _DetailView extends StatelessWidget {
   final Partner partner;
   const _DetailView({required this.partner});
 
-  Future<void> _call() => launchUrl(Uri.parse('tel:${partner.telefon}'));
-  Future<void> _email() => launchUrl(Uri.parse('mailto:${partner.email}'));
+  Future<void> _call() {
+    PartnerService().trackKlick(partner.id, 'anrufen');
+    return launchUrl(Uri.parse('tel:${partner.telefon}'));
+  }
+
+  Future<void> _email() {
+    PartnerService().trackKlick(partner.id, 'email');
+    return launchUrl(Uri.parse('mailto:${partner.email}'));
+  }
+
   Future<void> _website() {
+    PartnerService().trackKlick(partner.id, 'website');
     var url = partner.website;
     if (!url.startsWith('http')) url = 'https://$url';
     return launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);

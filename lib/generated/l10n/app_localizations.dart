@@ -422,6 +422,8 @@ abstract class AppLocalizations {
   /// **'Account & Abo'**
   String get accountManagement;
 
+  String get statistics;
+
   /// No description provided for @accountManagementNote.
   ///
   /// In de, this message translates to:
@@ -943,6 +945,18 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Fotos'**
   String get photos;
+
+  /// No description provided for @map.
+  ///
+  /// In de, this message translates to:
+  /// **'Karte'**
+  String get map;
+
+  /// No description provided for @mapNoLocation.
+  ///
+  /// In de, this message translates to:
+  /// **'Kein Standort verfügbar'**
+  String get mapNoLocation;
 }
 
 class _AppLocalizationsDelegate

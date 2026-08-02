@@ -176,6 +176,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get accountManagement => 'Account & Abo';
 
   @override
+  String get statistics => 'Statistiken';
+
+  @override
   String get accountManagementNote =>
       'Abo kündigen, Paket wechseln oder Account löschen – über die CrashLog-Website möglich.';
 
@@ -442,4 +445,10 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get photos => 'Fotos';
+
+  @override
+  String get map => 'Karte';
+
+  @override
+  String get mapNoLocation => 'Kein Standort verfügbar';
 }

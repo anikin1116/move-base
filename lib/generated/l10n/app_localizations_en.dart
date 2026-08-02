@@ -175,6 +175,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get accountManagement => 'Account & Subscription';
 
   @override
+  String get statistics => 'Statistics';
+
+  @override
   String get accountManagementNote =>
       'Cancel subscription, change package or delete your account — available at the CrashLog website.';
 
@@ -439,4 +442,10 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get photos => 'Photos';
+
+  @override
+  String get map => 'Map';
+
+  @override
+  String get mapNoLocation => 'No location available';
 }

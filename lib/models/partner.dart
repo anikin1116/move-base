@@ -26,6 +26,7 @@ class Partner {
   final Map<String, String> zusatzTelefon;
   final Map<String, String> zusatzInfo;
   final List<String> photos;
+  final Map<String, int> klicks;
 
   Partner({
     required this.id,
@@ -53,6 +54,7 @@ class Partner {
     required this.zusatzTelefon,
     required this.zusatzInfo,
     required this.photos,
+    this.klicks = const {},
   });
 
   factory Partner.fromFirestore(DocumentSnapshot doc) {
@@ -83,6 +85,8 @@ class Partner {
       zusatzTelefon: Map<String, String>.from(d['zusatzTelefon'] ?? {}),
       zusatzInfo: Map<String, String>.from(d['zusatzInfo'] ?? {}),
       photos: List<String>.from(d['photos'] ?? []),
+      klicks: (d['klicks'] as Map<String, dynamic>? ?? {})
+          .map((k, v) => MapEntry(k, (v as num).toInt())),
     );
   }
 

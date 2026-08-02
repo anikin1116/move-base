@@ -43,4 +43,8 @@ class PartnerService {
   Future<void> createProfile(String uid, Map<String, dynamic> data) async {
     await _col.doc(uid).set(data);
   }
+
+  Future<void> trackKlick(String partnerId, String field) async {
+    await _col.doc(partnerId).update({'klicks.$field': FieldValue.increment(1)});
+  }
 }

@@ -194,6 +194,18 @@ class _DashboardContent extends StatelessWidget {
 
         const SizedBox(height: 24),
 
+        // Klick-Statistiken
+        if (partner.klicks.isNotEmpty) ...[
+          Text(l10n.statistics,
+              style: const TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: AppColors.navy)),
+          const SizedBox(height: 12),
+          _StatsRow(klicks: partner.klicks),
+          const SizedBox(height: 24),
+        ],
+
         OutlinedButton.icon(
           icon: const Icon(Icons.edit_outlined, color: AppColors.navy),
           label: Text(l10n.editProfile,
@@ -350,6 +362,55 @@ class _ActionCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _StatsRow extends StatelessWidget {
+  final Map<String, int> klicks;
+  const _StatsRow({required this.klicks});
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      ('👁', 'Aufrufe',  klicks['aufrufe'] ?? 0),
+      ('📞', 'Anrufe',   klicks['anrufen'] ?? 0),
+      ('🌐', 'Website',  klicks['website'] ?? 0),
+      ('✉️', 'E-Mail',   klicks['email']   ?? 0),
+    ];
+    return Row(
+      children: items.map((e) {
+        return Expanded(
+          child: Container(
+            margin: const EdgeInsets.symmetric(horizontal: 4),
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.grey.shade200),
+              boxShadow: [
+                BoxShadow(
+                    color: Colors.black.withOpacity(0.03), blurRadius: 4),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(e.$1, style: const TextStyle(fontSize: 20)),
+                const SizedBox(height: 4),
+                Text('${e.$3}',
+                    style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.navy)),
+                Text(e.$2,
+                    style: const TextStyle(
+                        fontSize: 10, color: AppColors.grey)),
+              ],
+            ),
+          ),
+        );
+      }).toList(),
     );
   }
 }
