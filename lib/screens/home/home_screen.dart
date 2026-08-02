@@ -410,9 +410,8 @@ class _HomeScreenState extends State<HomeScreen> {
         elevation: 0,
         title: Row(
           children: [
-            // MoveBase Logo — lange drücken öffnet Arcade
             GestureDetector(
-              onLongPress: _openArcade,
+              onTap: _openArcade,
               behavior: HitTestBehavior.opaque,
               child: Padding(
                 padding: const EdgeInsets.all(8),
