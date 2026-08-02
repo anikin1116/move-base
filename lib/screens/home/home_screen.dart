@@ -425,17 +425,21 @@ class _HomeScreenState extends State<HomeScreen> {
             // MoveBase Logo — 5x tippen öffnet Arcade
             GestureDetector(
               onTap: _handleLogoTap,
-              child: Image.asset(
-                'assets/images/logo1.png',
-                width: 52,
-                height: 52,
-                fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => const Text(
-                  'MB',
-                  style: TextStyle(
-                      color: AppColors.navy,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16),
+              behavior: HitTestBehavior.opaque,
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Image.asset(
+                  'assets/images/logo1.png',
+                  width: 52,
+                  height: 52,
+                  fit: BoxFit.contain,
+                  errorBuilder: (_, __, ___) => const Text(
+                    'MB',
+                    style: TextStyle(
+                        color: AppColors.navy,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16),
+                  ),
                 ),
               ),
             ),
