@@ -66,6 +66,8 @@ class _DashboardContent extends StatelessWidget {
   Future<void> _openCheckout(BuildContext context) async {
     final l10n = AppLocalizations.of(context);
     final paket = partner.paket.isEmpty ? 'basic' : partner.paket;
+    final qty = partner.standorte.clamp(1, 99);
+    final hasDiscount = qty >= 2;
     try {
       final response = await http.post(
         Uri.parse('$_apiBase/api/checkout'),
@@ -76,8 +78,11 @@ class _DashboardContent extends StatelessWidget {
           'uid': auth.currentUser!.uid,
           'email': partner.email,
           'firmaName': partner.name,
-          'quantity': 1,
+          'quantity': qty,
+          if (hasDiscount) 'discountPercent': 20,
           'lang': 'de',
+          'success_url': 'movebase://payment/success',
+          'cancel_url': 'movebase://payment/cancel',
         }),
       );
       final data = jsonDecode(response.body) as Map<String, dynamic>;

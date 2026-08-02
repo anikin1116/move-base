@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:provider/provider.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:app_links/app_links.dart';
 import 'firebase_options.dart';
 import 'theme/app_theme.dart';
 import 'services/auth_service.dart';
@@ -67,12 +68,27 @@ class MoveBaseApp extends StatefulWidget {
 class _MoveBaseAppState extends State<MoveBaseApp> with WidgetsBindingObserver {
   static const _bgKey = 'movebase_bg_at';
   static const _timeoutMinutes = 30;
+  late final AppLinks _appLinks;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _checkSessionTimeout();
+    _initDeepLinks();
+  }
+
+  void _initDeepLinks() {
+    _appLinks = AppLinks();
+    _appLinks.uriLinkStream.listen((uri) {
+      if (uri.host == 'payment') {
+        if (uri.path == '/success') {
+          _router.go('/dashboard');
+        } else if (uri.path == '/cancel') {
+          _router.go('/dashboard');
+        }
+      }
+    });
   }
 
   @override

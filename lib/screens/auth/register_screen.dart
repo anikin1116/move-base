@@ -55,6 +55,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   // Step 2
   String? _selectedPaketId;
   String _billing = 'monthly';
+  int _standorte = 1;
 
   // Step 3
   final _emailCtrl = TextEditingController();
@@ -251,7 +252,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
         'aktiv': false,
         'paket': _selectedPaketId,
         'prioritaet': paket.prioritaet,
-        'standorte': 1,
+        'standorte': _standorte,
         'erstellt': FieldValue.serverTimestamp(),
         'zusatzTelefon': zusatzTelefon,
         'zusatzInfo': <String, String>{},
@@ -392,6 +393,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Widget _buildStep2Paket(AppLocalizations l10n) {
     final pakete = _pakete;
+    final hasDiscount = _standorte >= 2;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -416,15 +418,94 @@ class _RegisterScreenState extends State<RegisterScreen> {
             ),
           ),
           const SizedBox(height: 24),
-          ...pakete.map((paket) => _PaketCard(
-                paket: paket,
-                billing: _billing,
-                selected: _selectedPaketId == paket.id,
-                onTap: () => setState(() => _selectedPaketId = paket.id),
-                higherVisibilityLabel: l10n.higherVisibility,
-                perMonth: l10n.perMonth,
-                perYear: l10n.perYear,
-              )),
+          // Standorte-Stepper
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(children: [
+                  const Icon(Icons.location_on_outlined, color: AppColors.navy, size: 20),
+                  const SizedBox(width: 8),
+                  const Text('Anzahl Standorte',
+                      style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.navy)),
+                ]),
+                const SizedBox(height: 10),
+                Row(children: [
+                  IconButton(
+                    onPressed: _standorte > 1
+                        ? () => setState(() => _standorte--)
+                        : null,
+                    icon: const Icon(Icons.remove_circle_outline),
+                    color: AppColors.orange,
+                    iconSize: 30,
+                  ),
+                  Expanded(
+                    child: Text(
+                      '$_standorte',
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.navy),
+                    ),
+                  ),
+                  IconButton(
+                    onPressed: _standorte < 20
+                        ? () => setState(() => _standorte++)
+                        : null,
+                    icon: const Icon(Icons.add_circle_outline),
+                    color: AppColors.orange,
+                    iconSize: 30,
+                  ),
+                ]),
+                if (hasDiscount)
+                  Container(
+                    margin: const EdgeInsets.only(top: 6),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.green.shade300),
+                    ),
+                    child: Row(children: [
+                      Icon(Icons.local_offer_outlined,
+                          size: 14, color: Colors.green.shade700),
+                      const SizedBox(width: 6),
+                      Text('20% Mengenrabatt ab 2 Standorten',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.green.shade800,
+                              fontWeight: FontWeight.w500)),
+                    ]),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          ...pakete.map((paket) {
+            final basePrice = _billing == 'yearly' ? paket.jaehrlich : paket.monatlich;
+            final total = hasDiscount
+                ? basePrice * _standorte * 0.8
+                : basePrice * _standorte;
+            return _PaketCard(
+              paket: paket,
+              billing: _billing,
+              standorte: _standorte,
+              totalPrice: total,
+              hasDiscount: hasDiscount,
+              selected: _selectedPaketId == paket.id,
+              onTap: () => setState(() => _selectedPaketId = paket.id),
+              higherVisibilityLabel: l10n.higherVisibility,
+              perMonth: l10n.perMonth,
+              perYear: l10n.perYear,
+            );
+          }),
           const SizedBox(height: 32),
           _primaryBtn(l10n.next,
               () { if (_validateStep2()) _goTo(2); }),
@@ -723,6 +804,9 @@ class _AddressSuggestion {
 class _PaketCard extends StatelessWidget {
   final Paket paket;
   final String billing;
+  final int standorte;
+  final double totalPrice;
+  final bool hasDiscount;
   final bool selected;
   final VoidCallback onTap;
   final String higherVisibilityLabel;
@@ -732,6 +816,9 @@ class _PaketCard extends StatelessWidget {
   const _PaketCard({
     required this.paket,
     required this.billing,
+    required this.standorte,
+    required this.totalPrice,
+    required this.hasDiscount,
     required this.selected,
     required this.onTap,
     required this.higherVisibilityLabel,
@@ -741,7 +828,7 @@ class _PaketCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final price = billing == 'yearly' ? paket.jaehrlich : paket.monatlich;
+    final basePrice = billing == 'yearly' ? paket.jaehrlich : paket.monatlich;
     final unit = billing == 'yearly' ? perYear : perMonth;
 
     return GestureDetector(
@@ -776,24 +863,42 @@ class _PaketCard extends StatelessWidget {
                     Text(higherVisibilityLabel,
                         style: TextStyle(
                             fontSize: 12,
-                            color: selected
-                                ? Colors.white70
-                                : AppColors.grey)),
+                            color: selected ? Colors.white70 : AppColors.grey)),
+                  if (standorte > 1)
+                    Text(
+                      hasDiscount
+                          ? '€ ${basePrice.toStringAsFixed(2)} × $standorte – 20%'
+                          : '€ ${basePrice.toStringAsFixed(2)} × $standorte',
+                      style: TextStyle(
+                          fontSize: 11,
+                          color: selected ? Colors.white54 : AppColors.grey),
+                    ),
                 ],
               ),
             ),
-            Text(
-              '€ ${price.toStringAsFixed(2)}$unit',
-              style: TextStyle(
-                  fontWeight: FontWeight.bold,
-                  fontSize: 16,
-                  color: selected ? AppColors.orange : AppColors.navy),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  '€ ${totalPrice.toStringAsFixed(2)}$unit',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: selected ? AppColors.orange : AppColors.navy),
+                ),
+                if (hasDiscount)
+                  Text('inkl. 20% Rabatt',
+                      style: TextStyle(
+                          fontSize: 10,
+                          color: selected
+                              ? Colors.green.shade300
+                              : Colors.green.shade700)),
+              ],
             ),
             if (selected)
               const Padding(
                 padding: EdgeInsets.only(left: 8),
-                child:
-                    Icon(Icons.check_circle, color: AppColors.orange),
+                child: Icon(Icons.check_circle, color: AppColors.orange),
               ),
           ],
         ),
