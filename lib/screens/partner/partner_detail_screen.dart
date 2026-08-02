@@ -74,6 +74,7 @@ class _DetailView extends StatelessWidget {
       partner.name,
       partner.fullAddress,
       if (partner.telefon.isNotEmpty) '📞 ${partner.telefon}',
+      if (partner.email.isNotEmpty) '✉️ ${partner.email}',
       if (partner.website.isNotEmpty) '🌐 ${partner.website}',
     ];
     Share.share(lines.join('\n'));
