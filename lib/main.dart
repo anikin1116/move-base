@@ -35,6 +35,15 @@ void main() async {
 
 final _router = GoRouter(
   initialLocation: '/',
+  onException: (_, state, router) {
+    // movebase://payment/* deep links arrive here — redirect to dashboard
+    final uri = state.uri;
+    if (uri.scheme == 'movebase' || uri.path.startsWith('/payment')) {
+      router.go('/dashboard');
+    } else {
+      router.go('/');
+    }
+  },
   routes: [
     GoRoute(path: '/', builder: (_, __) => const HomeScreen()),
     GoRoute(path: '/search', builder: (_, __) => const SearchScreen()),

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../theme/app_theme.dart';
@@ -22,7 +21,7 @@ class _PotholeGameState extends State<PotholeGame> {
   double _speed = 3.0;
   Timer? _tick;
   Timer? _spawn;
-  final Random _rng = Random();
+  final _rng = DateTime.now().millisecondsSinceEpoch;
 
   @override
   void initState() {
@@ -46,9 +45,7 @@ class _PotholeGameState extends State<PotholeGame> {
     _tick = Timer.periodic(const Duration(milliseconds: 50), (_) {
       if (!mounted) return;
       setState(() {
-        for (final h in _holes) {
-          h.y += _speed;
-        }
+        for (final h in _holes) h.y += _speed;
         _holes.removeWhere((h) => h.y > 105);
         for (final h in _holes) {
           if (h.lane == _carLane && h.y > 78 && h.y < 98) {
@@ -63,7 +60,8 @@ class _PotholeGameState extends State<PotholeGame> {
 
     _spawn = Timer.periodic(const Duration(milliseconds: 1100), (_) {
       if (!mounted || !_running) return;
-      setState(() => _holes.add(_Hole(_rng.nextInt(_lanes))));
+      final lane = (_rng + _score) % _lanes;
+      setState(() => _holes.add(_Hole(lane)));
     });
   }
 
@@ -101,12 +99,19 @@ class _PotholeGameState extends State<PotholeGame> {
       appBar: AppBar(
         backgroundColor: const Color(0xFF2C2C2C),
         foregroundColor: Colors.white,
-        title: Row(children: [
-          const Text('🚗  Schlagloch-Ausweicher'),
-          const Spacer(),
-          Text('$_score m',
-              style: const TextStyle(color: AppColors.orange, fontWeight: FontWeight.bold)),
-        ]),
+        title: const Text('Schlaglöcher'),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: Center(
+              child: Text('$_score m',
+                  style: const TextStyle(
+                      color: AppColors.orange,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16)),
+            ),
+          ),
+        ],
       ),
       body: GestureDetector(
         onTapDown: _tap,
@@ -115,7 +120,6 @@ class _PotholeGameState extends State<PotholeGame> {
           final h = c.maxHeight;
           final laneW = w / _lanes;
           return Stack(children: [
-            // Road
             Container(color: const Color(0xFF3A3A3A)),
             CustomPaint(painter: _LanePainter(), size: Size(w, h)),
             // Obstacles
@@ -132,24 +136,19 @@ class _PotholeGameState extends State<PotholeGame> {
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.grey.shade600, width: 3),
                   ),
-                  child: const Center(
-                    child: Text('⚠', style: TextStyle(fontSize: 18)),
-                  ),
+                  child: const Center(child: Text('⚠', style: TextStyle(fontSize: 18))),
                 ),
               );
             }),
-            // Car (nach oben gedreht = Fahrtrichtung)
+            // Car — Vogelperspektive
             Positioned(
-              left: laneW * _carLane + laneW / 2 - 22,
+              left: laneW * _carLane + laneW / 2 - 18,
               bottom: h * 0.08,
-              child: Transform.rotate(
-                angle: -pi / 2,
-                child: const Text('🚙', style: TextStyle(fontSize: 44)),
-              ),
+              child: const _TopDownCar(),
             ),
             // Overlays
             if (!_running && !_gameOver) _overlay(
-              icon: '🚗',
+              icon: '🏎️',
               msg: 'Tippe links/rechts\num auszuweichen!',
               btn: 'Starten',
               sub: _best > 0 ? 'Highscore: $_best m' : null,
@@ -166,7 +165,8 @@ class _PotholeGameState extends State<PotholeGame> {
     );
   }
 
-  Widget _overlay({required String icon, required String msg, required String btn, String? sub}) {
+  Widget _overlay({required String icon, required String msg,
+      required String btn, String? sub}) {
     return Center(
       child: Container(
         padding: const EdgeInsets.all(24),
@@ -203,6 +203,80 @@ class _Hole {
   _Hole(this.lane) : y = -5;
 }
 
+// ── Vogelperspektive Auto ────────────────────────────────────────────────────
+
+class _TopDownCar extends StatelessWidget {
+  const _TopDownCar();
+  @override
+  Widget build(BuildContext context) {
+    return const SizedBox(
+      width: 36,
+      height: 58,
+      child: CustomPaint(painter: _CarPainter()),
+    );
+  }
+}
+
+class _CarPainter extends CustomPainter {
+  const _CarPainter();
+
+  @override
+  void paint(Canvas canvas, Size s) {
+    final w = s.width;
+    final h = s.height;
+
+    // Räder
+    final wp = Paint()..color = const Color(0xFF1A1A1A);
+    for (final r in <Rect>[
+      Rect.fromLTWH(-3, h * 0.09, 8, 13),
+      Rect.fromLTWH(w - 5, h * 0.09, 8, 13),
+      Rect.fromLTWH(-3, h * 0.73, 8, 13),
+      Rect.fromLTWH(w - 5, h * 0.73, 8, 13),
+    ]) {
+      canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(2)), wp);
+    }
+
+    // Karosserie
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.07, 0, w * 0.86, h),
+        Radius.circular(w * 0.24),
+      ),
+      Paint()..color = const Color(0xFF1565C0),
+    );
+
+    // Frontscheibe (oben = Fahrtrichtung)
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.17, h * 0.09, w * 0.66, h * 0.19),
+        const Radius.circular(4),
+      ),
+      Paint()..color = const Color(0xCCADD8E6),
+    );
+
+    // Heckscheibe
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(w * 0.20, h * 0.72, w * 0.60, h * 0.13),
+        const Radius.circular(3),
+      ),
+      Paint()..color = const Color(0x88ADD8E6),
+    );
+
+    // Motorhaubennaht
+    canvas.drawLine(
+      Offset(w * 0.28, h * 0.31),
+      Offset(w * 0.72, h * 0.31),
+      Paint()
+        ..color = const Color(0x441A1A1A)
+        ..strokeWidth = 1.5,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter _) => false;
+}
+
 class _LanePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
@@ -212,7 +286,6 @@ class _LanePainter extends CustomPainter {
       ..style = PaintingStyle.stroke;
     for (int i = 1; i < 3; i++) {
       final x = size.width * i / 3;
-      // dashed line
       double y = 0;
       while (y < size.height) {
         canvas.drawLine(Offset(x, y), Offset(x, y + 20), p);

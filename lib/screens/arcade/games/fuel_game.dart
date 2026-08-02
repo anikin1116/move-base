@@ -34,7 +34,7 @@ class _FuelGameState extends State<FuelGame>
 
   void _setSpeed() {
     _ctrl.duration =
-        Duration(milliseconds: max(400, 1800 - _round * 250));
+        Duration(milliseconds: max(180, 900 - _round * 140));
   }
 
   void _start() {
