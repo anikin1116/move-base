@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../../theme/app_theme.dart';
@@ -11,6 +12,7 @@ class PotholeGame extends StatefulWidget {
 
 class _PotholeGameState extends State<PotholeGame> {
   static const int _lanes = 3;
+  static final _rng = Random();
 
   int _carLane = 1;
   final List<_Hole> _holes = [];
@@ -19,9 +21,8 @@ class _PotholeGameState extends State<PotholeGame> {
   int _score = 0;
   int _best = 0;
   double _speed = 3.0;
+  int _spawnCounter = 0;
   Timer? _tick;
-  Timer? _spawn;
-  final _rng = DateTime.now().millisecondsSinceEpoch;
 
   @override
   void initState() {
@@ -30,14 +31,21 @@ class _PotholeGameState extends State<PotholeGame> {
         .then((p) => setState(() => _best = p.getInt('hs_pothole') ?? 0));
   }
 
+  // Wie viele Tick-Frames zwischen zwei Spawns (50ms/Frame)
+  // Score 0 → 22 Frames = 1100ms, Score 600 → 6 Frames = 300ms
+  int get _spawnEvery => max(6, 22 - _score ~/ 35);
+
+  // Ab Score 300 kommt manchmal ein zweites Loch
+  bool get _spawnDouble => _score >= 300 && _rng.nextDouble() < 0.55;
+
   void _start() {
     _tick?.cancel();
-    _spawn?.cancel();
     _holes.clear();
     setState(() {
       _carLane = 1;
       _score = 0;
       _speed = 3.0;
+      _spawnCounter = 0;
       _running = true;
       _gameOver = false;
     });
@@ -45,29 +53,45 @@ class _PotholeGameState extends State<PotholeGame> {
     _tick = Timer.periodic(const Duration(milliseconds: 50), (_) {
       if (!mounted) return;
       setState(() {
+        // Schlaglöcher bewegen
         for (final h in _holes) h.y += _speed;
         _holes.removeWhere((h) => h.y > 105);
+
+        // Kollision prüfen
         for (final h in _holes) {
           if (h.lane == _carLane && h.y > 78 && h.y < 98) {
             _end();
             return;
           }
         }
+
+        // Score + Geschwindigkeit
         _score++;
-        _speed = 3.0 + _score / 200.0;
+        _speed = min(14.0, 3.0 + _score / 50.0);
+
+        // Spawn
+        _spawnCounter++;
+        if (_spawnCounter >= _spawnEvery) {
+          _spawnCounter = 0;
+          _spawnHoles();
+        }
       });
     });
+  }
 
-    _spawn = Timer.periodic(const Duration(milliseconds: 1100), (_) {
-      if (!mounted || !_running) return;
-      final lane = (_rng + _score) % _lanes;
-      setState(() => _holes.add(_Hole(lane)));
-    });
+  void _spawnHoles() {
+    final lane1 = _rng.nextInt(_lanes);
+    _holes.add(_Hole(lane1));
+
+    if (_spawnDouble) {
+      // Zweites Loch in einer anderen Spur
+      final others = List.generate(_lanes, (i) => i)..remove(lane1);
+      _holes.add(_Hole(others[_rng.nextInt(others.length)]));
+    }
   }
 
   void _end() {
     _tick?.cancel();
-    _spawn?.cancel();
     setState(() { _running = false; _gameOver = true; });
     if (_score > _best) {
       _best = _score;
@@ -88,8 +112,15 @@ class _PotholeGameState extends State<PotholeGame> {
   @override
   void dispose() {
     _tick?.cancel();
-    _spawn?.cancel();
     super.dispose();
+  }
+
+  // Schwierigkeits-Label für Anzeige
+  String get _difficulty {
+    if (_score < 150) return '';
+    if (_score < 300) return '🔶 Schneller';
+    if (_score < 500) return '🔴 Doppelt!';
+    return '💀 Wahnsinn';
   }
 
   @override
@@ -122,7 +153,7 @@ class _PotholeGameState extends State<PotholeGame> {
           return Stack(children: [
             Container(color: const Color(0xFF3A3A3A)),
             CustomPaint(painter: _LanePainter(), size: Size(w, h)),
-            // Obstacles
+            // Schlaglöcher
             ..._holes.map((hole) {
               final x = laneW * hole.lane + laneW / 2;
               final y = h * hole.y / 100;
@@ -136,37 +167,59 @@ class _PotholeGameState extends State<PotholeGame> {
                     shape: BoxShape.circle,
                     border: Border.all(color: Colors.grey.shade600, width: 3),
                   ),
-                  child: const Center(child: Text('⚠', style: TextStyle(fontSize: 18))),
+                  child: const Center(
+                      child: Text('⚠', style: TextStyle(fontSize: 18))),
                 ),
               );
             }),
-            // Car — Vogelperspektive
+            // Auto — Vogelperspektive
             Positioned(
               left: laneW * _carLane + laneW / 2 - 18,
               bottom: h * 0.08,
               child: const _TopDownCar(),
             ),
+            // Schwierigkeits-Label
+            if (_running && _difficulty.isNotEmpty)
+              Positioned(
+                top: 8, left: 0, right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.black54,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(_difficulty,
+                        style: const TextStyle(color: Colors.white, fontSize: 12)),
+                  ),
+                ),
+              ),
             // Overlays
-            if (!_running && !_gameOver) _overlay(
-              icon: '🏎️',
-              msg: 'Tippe links/rechts\num auszuweichen!',
-              btn: 'Starten',
-              sub: _best > 0 ? 'Highscore: $_best m' : null,
-            ),
-            if (_gameOver) _overlay(
-              icon: '💥',
-              msg: '$_score m zurückgelegt',
-              btn: 'Nochmal',
-              sub: 'Highscore: $_best m',
-            ),
+            if (!_running && !_gameOver)
+              _overlay(
+                icon: '🏎️',
+                msg: 'Tippe links/rechts\num auszuweichen!',
+                btn: 'Starten',
+                sub: _best > 0 ? 'Highscore: $_best m' : null,
+              ),
+            if (_gameOver)
+              _overlay(
+                icon: '💥',
+                msg: '$_score m zurückgelegt',
+                btn: 'Nochmal',
+                sub: 'Highscore: $_best m',
+              ),
           ]);
         }),
       ),
     );
   }
 
-  Widget _overlay({required String icon, required String msg,
-      required String btn, String? sub}) {
+  Widget _overlay(
+      {required String icon,
+      required String msg,
+      required String btn,
+      String? sub}) {
     return Center(
       child: Container(
         padding: const EdgeInsets.all(24),
@@ -182,13 +235,15 @@ class _PotholeGameState extends State<PotholeGame> {
               style: const TextStyle(color: Colors.white, fontSize: 16)),
           if (sub != null) ...[
             const SizedBox(height: 4),
-            Text(sub, style: const TextStyle(color: AppColors.orange, fontSize: 13)),
+            Text(sub,
+                style: const TextStyle(color: AppColors.orange, fontSize: 13)),
           ],
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _start,
             style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.orange, foregroundColor: Colors.white),
+                backgroundColor: AppColors.orange,
+                foregroundColor: Colors.white),
             child: Text(btn),
           ),
         ]),
@@ -225,7 +280,6 @@ class _CarPainter extends CustomPainter {
     final w = s.width;
     final h = s.height;
 
-    // Räder
     final wp = Paint()..color = const Color(0xFF1A1A1A);
     for (final r in <Rect>[
       Rect.fromLTWH(-3, h * 0.09, 8, 13),
@@ -233,10 +287,10 @@ class _CarPainter extends CustomPainter {
       Rect.fromLTWH(-3, h * 0.73, 8, 13),
       Rect.fromLTWH(w - 5, h * 0.73, 8, 13),
     ]) {
-      canvas.drawRRect(RRect.fromRectAndRadius(r, const Radius.circular(2)), wp);
+      canvas.drawRRect(
+          RRect.fromRectAndRadius(r, const Radius.circular(2)), wp);
     }
 
-    // Karosserie
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(w * 0.07, 0, w * 0.86, h),
@@ -245,7 +299,6 @@ class _CarPainter extends CustomPainter {
       Paint()..color = const Color(0xFF1565C0),
     );
 
-    // Frontscheibe (oben = Fahrtrichtung)
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(w * 0.17, h * 0.09, w * 0.66, h * 0.19),
@@ -254,7 +307,6 @@ class _CarPainter extends CustomPainter {
       Paint()..color = const Color(0xCCADD8E6),
     );
 
-    // Heckscheibe
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(w * 0.20, h * 0.72, w * 0.60, h * 0.13),
@@ -263,7 +315,6 @@ class _CarPainter extends CustomPainter {
       Paint()..color = const Color(0x88ADD8E6),
     );
 
-    // Motorhaubennaht
     canvas.drawLine(
       Offset(w * 0.28, h * 0.31),
       Offset(w * 0.72, h * 0.31),
