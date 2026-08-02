@@ -63,7 +63,11 @@ class Partner {
       id: doc.id,
       name: d['name'] ?? '',
       kategorie: d['kategorie'] ?? '',
-      kategorien: List<String>.from(d['kategorien'] ?? []),
+      kategorien: d['kategorien'] is List
+          ? List<String>.from(d['kategorien'])
+          : d['kategorien'] is String && (d['kategorien'] as String).isNotEmpty
+              ? [d['kategorien'] as String]
+              : [],
       adresse: d['adresse'] ?? '',
       ort: d['ort'] ?? '',
       plz: d['plz'] ?? '',
@@ -84,7 +88,7 @@ class Partner {
       lng: (d['firmaLongitude'] as num?)?.toDouble(),
       zusatzTelefon: Map<String, String>.from(d['zusatzTelefon'] ?? {}),
       zusatzInfo: Map<String, String>.from(d['zusatzInfo'] ?? {}),
-      photos: List<String>.from(d['photos'] ?? []),
+      photos: d['photos'] is List ? List<String>.from(d['photos']) : [],
       klicks: (d['klicks'] as Map<String, dynamic>? ?? {})
           .map((k, v) => MapEntry(k, (v as num).toInt())),
     );
