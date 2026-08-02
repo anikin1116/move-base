@@ -23,7 +23,7 @@ class _PartnerDetailScreenState extends State<PartnerDetailScreen> {
     super.initState();
     _future = PartnerService().getPartner(widget.partnerId).then((p) {
       if (p != null) {
-        PartnerService().trackKlick(widget.partnerId, 'aufrufe');
+        PartnerService().trackKlick(p.name, 'aufrufe');
       }
       return p;
     });
@@ -53,17 +53,17 @@ class _DetailView extends StatelessWidget {
   const _DetailView({required this.partner});
 
   Future<void> _call() {
-    PartnerService().trackKlick(partner.id, 'anrufen');
+    PartnerService().trackKlick(partner.name, 'anrufen');
     return launchUrl(Uri.parse('tel:${partner.telefon}'));
   }
 
   Future<void> _email() {
-    PartnerService().trackKlick(partner.id, 'email');
+    PartnerService().trackKlick(partner.name, 'email');
     return launchUrl(Uri.parse('mailto:${partner.email}'));
   }
 
   Future<void> _website() {
-    PartnerService().trackKlick(partner.id, 'website');
+    PartnerService().trackKlick(partner.name, 'website');
     var url = partner.website;
     if (!url.startsWith('http')) url = 'https://$url';
     return launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
