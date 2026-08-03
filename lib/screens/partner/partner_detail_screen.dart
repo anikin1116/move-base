@@ -213,7 +213,7 @@ class _DetailView extends StatelessWidget {
       ),
     );
 
-    if (partner.logo.isNotEmpty) {
+    if (partner.isPremium && partner.logo.isNotEmpty) {
       return SliverAppBar(
         expandedHeight: 220,
         pinned: true,
@@ -306,7 +306,7 @@ class _DetailView extends StatelessWidget {
           label: l10n.navigation,
           onTap: _maps,
         ),
-        if (partner.website.isNotEmpty)
+        if (partner.isPremium && partner.website.isNotEmpty)
           _ActionBtn(
             icon: Icons.language,
             label: l10n.website,

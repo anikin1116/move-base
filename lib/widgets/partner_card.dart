@@ -97,7 +97,7 @@ class PartnerCard extends StatelessWidget {
   }
 
   Widget _buildLogo() {
-    if (partner.logo.isNotEmpty) {
+    if (partner.isPremium && partner.logo.isNotEmpty) {
       return Container(
         width: 60,
         height: 60,

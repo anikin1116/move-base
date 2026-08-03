@@ -57,6 +57,11 @@ class Partner {
     this.klicks = const {},
   });
 
+  bool get isPremium =>
+      paket == 'premium' ||
+      paket == 'versicherung_premium' ||
+      paket == 'sachverstaendiger_premium';
+
   factory Partner.fromFirestore(DocumentSnapshot doc) {
     final d = doc.data() as Map<String, dynamic>;
     return Partner(
