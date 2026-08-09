@@ -361,6 +361,23 @@ class _SearchScreenState extends State<SearchScreen> {
                       ],
                     ),
                   ),
+                if (_controller.text.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text('Search by ',
+                            style: TextStyle(
+                                color: Colors.grey.shade500, fontSize: 11)),
+                        const Text('Algolia',
+                            style: TextStyle(
+                                color: Color(0xFF003DFF),
+                                fontSize: 11,
+                                fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
                 Expanded(
                   child: _results.isEmpty
                       ? Center(
