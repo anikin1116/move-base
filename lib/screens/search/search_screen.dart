@@ -216,6 +216,7 @@ class _SearchScreenState extends State<SearchScreen> {
       final hits = await _algoliaService.search(query.trim());
       if (!mounted) return;
       var list = hits.where((p) {
+        if (!p.aktiv) return false;
         if (_filterLaender.isNotEmpty && !_filterLaender.contains(p.land)) return false;
         if (_filterKategorien.isNotEmpty &&
             !_filterKategorien.contains(p.kategorie) &&

@@ -24,7 +24,6 @@ class AlgoliaService {
         body: jsonEncode({
           'query': query,
           'hitsPerPage': 100,
-          'filters': 'aktiv:true',
         }),
       );
       if (res.statusCode != 200) return [];
