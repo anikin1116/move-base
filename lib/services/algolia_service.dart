@@ -6,7 +6,7 @@ import '../models/partner.dart';
 class AlgoliaService {
   static const _appId = '4IWBMP0M4F';
   static const _searchKey = 'fe2560b3dbb3717f4213c1d8e8e2b77acc';
-  static const _index = 'partners';
+  static const _index = 'companies';
 
   Future<List<Partner>> search(String query) async {
     final uri = Uri.https(
