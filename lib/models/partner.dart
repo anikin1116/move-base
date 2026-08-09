@@ -100,6 +100,41 @@ class Partner {
   }
 
   String get fullAddress => '$adresse, $plz $ort';
+
+  factory Partner.fromAlgolia(Map<String, dynamic> h) {
+    return Partner(
+      id: h['objectID'] as String? ?? '',
+      name: h['name'] ?? '',
+      kategorie: h['kategorie'] ?? '',
+      kategorien: h['kategorien'] is List
+          ? List<String>.from(h['kategorien'])
+          : h['kategorien'] is String && (h['kategorien'] as String).isNotEmpty
+              ? [h['kategorien'] as String]
+              : [],
+      adresse: h['adresse'] ?? '',
+      ort: h['ort'] ?? '',
+      plz: h['plz'] ?? '',
+      land: h['land'] ?? 'AT',
+      telefon: h['telefon'] ?? '',
+      email: h['email'] ?? '',
+      website: h['website'] ?? '',
+      oeffnungszeiten: h['oeffnungszeiten'] ?? '',
+      berater: h['berater'] ?? '',
+      logo: h['logo'] ?? '',
+      leistungen: h['leistungen'] ?? '',
+      ersatzwagenHinweis: h['ersatzwagenHinweis'] ?? '',
+      aktiv: h['aktiv'] ?? false,
+      paket: h['paket'] ?? '',
+      standorte: (h['standorte'] as num?)?.toInt() ?? 1,
+      prioritaet: (h['prioritaet'] as num?)?.toInt() ?? 0,
+      lat: (h['firmaLatitude'] as num?)?.toDouble(),
+      lng: (h['firmaLongitude'] as num?)?.toDouble(),
+      zusatzTelefon: Map<String, String>.from(h['zusatzTelefon'] ?? {}),
+      zusatzInfo: Map<String, String>.from(h['zusatzInfo'] ?? {}),
+      photos: h['photos'] is List ? List<String>.from(h['photos']) : [],
+      klicks: {},
+    );
+  }
 }
 
 const List<String> kCategories = [

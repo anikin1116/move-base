@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
@@ -6,6 +7,7 @@ import '../../generated/l10n/app_localizations.dart';
 import '../../theme/app_theme.dart';
 import '../../models/partner.dart';
 import '../../services/partner_service.dart';
+import '../../services/algolia_service.dart';
 import '../../utils/category_utils.dart';
 import '../../widgets/partner_card.dart';
 
@@ -52,12 +54,15 @@ class SearchScreen extends StatefulWidget {
 class _SearchScreenState extends State<SearchScreen> {
   final _controller = TextEditingController();
   final _partnerService = PartnerService();
+  final _algoliaService = AlgoliaService();
+  Timer? _debounce;
 
   List<Partner> _allPartners = [];
   List<Partner> _results = [];
   Position? _position;
   bool _loadingLocation = false;
   bool _loadingPartners = true;
+  bool _algoliaLoading = false;
 
   final Set<String> _filterKategorien = {};
   final Set<String> _filterLaender = {};
@@ -190,14 +195,58 @@ class _SearchScreenState extends State<SearchScreen> {
             _filterLaender..clear()..addAll(land);
             _filterBundeslaender..clear()..addAll(bl);
           });
-          _applyFilter(_controller.text);
+          _onQueryChanged(_controller.text);
         },
       ),
     );
   }
 
+  void _onQueryChanged(String query) {
+    _debounce?.cancel();
+    if (query.trim().isEmpty) {
+      _applyFilter(query);
+      return;
+    }
+    setState(() => _algoliaLoading = true);
+    _debounce = Timer(const Duration(milliseconds: 350), () => _searchAlgolia(query));
+  }
+
+  Future<void> _searchAlgolia(String query) async {
+    try {
+      final hits = await _algoliaService.search(query.trim());
+      if (!mounted) return;
+      var list = hits.where((p) {
+        if (_filterLaender.isNotEmpty && !_filterLaender.contains(p.land)) return false;
+        if (_filterKategorien.isNotEmpty &&
+            !_filterKategorien.contains(p.kategorie) &&
+            !p.kategorien.any((k) => _filterKategorien.contains(k))) return false;
+        if (_filterBundeslaender.isNotEmpty) {
+          final bl = _bundeslandFromPlz(p.plz, p.land);
+          if (bl == null || !_filterBundeslaender.contains(bl)) return false;
+        }
+        return true;
+      }).toList();
+      if (_position != null) {
+        list.sort((a, b) {
+          final da = _distanceTo(a);
+          final db = _distanceTo(b);
+          if (da == null && db == null) return 0;
+          if (da == null) return 1;
+          if (db == null) return -1;
+          return da.compareTo(db);
+        });
+      }
+      setState(() => _results = list);
+    } catch (_) {
+      _applyFilter(query);
+    } finally {
+      if (mounted) setState(() => _algoliaLoading = false);
+    }
+  }
+
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -229,9 +278,19 @@ class _SearchScreenState extends State<SearchScreen> {
                   )
                 : _position != null
                     ? const Icon(Icons.location_on, color: Colors.white54, size: 18)
-                    : null,
+                    : _algoliaLoading
+                        ? const Padding(
+                            padding: EdgeInsets.all(12),
+                            child: SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                  strokeWidth: 2, color: Colors.white54),
+                            ),
+                          )
+                        : null,
           ),
-          onChanged: _applyFilter,
+          onChanged: _onQueryChanged,
         ),
         actions: [
           Stack(
@@ -292,7 +351,7 @@ class _SearchScreenState extends State<SearchScreen> {
                               _filterLaender.clear();
                               _filterBundeslaender.clear();
                             });
-                            _applyFilter(_controller.text);
+                            _onQueryChanged(_controller.text);
                           },
                           child: Text(l10n.filterResetAll,
                               style: const TextStyle(
