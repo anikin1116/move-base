@@ -113,7 +113,10 @@ class _SearchScreenState extends State<SearchScreen> {
             p.ort.toLowerCase().contains(q) ||
             p.plz.contains(q) ||
             p.kategorie.toLowerCase().contains(q) ||
-            p.kategorien.any((k) => k.toLowerCase().contains(q));
+            p.kategorien.any((k) => k.toLowerCase().contains(q)) ||
+            p.leistungen.toLowerCase().contains(q) ||
+            p.zusatzInfo.keys.any((k) => k.toLowerCase().contains(q)) ||
+            p.zusatzInfo.values.any((v) => v.toLowerCase().contains(q));
         if (!match) return false;
       }
       if (_filterLaender.isNotEmpty && !_filterLaender.contains(p.land)) {
