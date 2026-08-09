@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppColors {
   static const orange = Color(0xFFF5A623);
@@ -20,7 +19,6 @@ class AppTheme {
           surface: AppColors.white,
           error: AppColors.error,
         ),
-        textTheme: GoogleFonts.interTextTheme(),
         appBarTheme: const AppBarTheme(
           backgroundColor: AppColors.navy,
           foregroundColor: AppColors.white,

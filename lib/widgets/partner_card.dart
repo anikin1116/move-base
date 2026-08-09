@@ -113,6 +113,8 @@ class PartnerCard extends StatelessWidget {
             width: 60,
             height: 60,
             fit: BoxFit.contain,
+            cacheWidth: 120,
+            cacheHeight: 120,
             errorBuilder: (_, __, ___) => _initial(),
           ),
         ),

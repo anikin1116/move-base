@@ -2,7 +2,7 @@ name: move_base
 description: MoveBase – KFZ-Fachbetriebe finden
 publish_to: 'none'
 
-version: 1.0.2+19
+version: 1.0.2+21
 
 environment:
   sdk: ^3.12.2
@@ -20,8 +20,6 @@ dependencies:
   firebase_auth: ^5.6.0
   cloud_firestore: ^5.6.9
   firebase_storage: ^12.4.5
-  firebase_crashlytics: ^4.3.0
-
   # Navigation
   go_router: ^14.0.0
 

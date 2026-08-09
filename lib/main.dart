@@ -1,7 +1,5 @@
-import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_crashlytics/firebase_crashlytics.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'generated/l10n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
@@ -25,26 +23,14 @@ import 'screens/map/map_screen.dart';
 import 'models/partner.dart';
 
 void main() async {
-  runZonedGuarded<Future<void>>(() async {
-    WidgetsFlutterBinding.ensureInitialized();
-    try {
-      await Firebase.initializeApp(
-          options: DefaultFirebaseOptions.currentPlatform);
-      FlutterError.onError =
-          FirebaseCrashlytics.instance.recordFlutterFatalError;
-    } catch (e) {
-      debugPrint('Firebase init skipped on this platform: $e');
-    }
-    runApp(const MoveBaseApp());
-  }, (error, stack) {
-    FirebaseCrashlytics.instance.recordError(error, stack, fatal: true);
-  });
+  WidgetsFlutterBinding.ensureInitialized();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  runApp(const MoveBaseApp());
 }
 
 final _router = GoRouter(
   initialLocation: '/',
   onException: (_, state, router) {
-    // movebase://payment/* deep links arrive here — redirect to dashboard
     final uri = state.uri;
     if (uri.scheme == 'movebase' || uri.path.startsWith('/payment')) {
       router.go('/dashboard');
