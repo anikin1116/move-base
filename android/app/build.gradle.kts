@@ -19,7 +19,7 @@ android {
     defaultConfig {
         applicationId = "com.mycompany.move_base"
         minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
