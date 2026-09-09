@@ -204,32 +204,53 @@ class _DashboardContent extends StatelessWidget {
                 fontWeight: FontWeight.bold,
                 color: AppColors.navy)),
         const SizedBox(height: 12),
-        _InfoRow(Icons.location_on_outlined, partner.fullAddress),
-        if (partner.standorte > 1)
+        if (partner.standorte <= 1) ...[
+          _InfoRow(Icons.location_on_outlined, partner.fullAddress),
+          _InfoRow(Icons.phone_outlined, partner.telefon),
+          if (partner.email.isNotEmpty)
+            _InfoRow(Icons.email_outlined, partner.email),
+          if (partner.website.isNotEmpty)
+            _InfoRow(Icons.language_outlined, partner.website),
+          if (partner.oeffnungszeiten.isNotEmpty)
+            _InfoRow(Icons.access_time_outlined, partner.oeffnungszeiten),
+          if (partner.berater.isNotEmpty)
+            _InfoRow(Icons.person_outline, partner.berater),
+        ] else ...[
+          _LocationCard(
+            label: 'Standort 1',
+            adresse: partner.fullAddress,
+            telefon: partner.telefon,
+            email: partner.email,
+            website: partner.website,
+            oeffnungszeiten: partner.oeffnungszeiten,
+          ),
           FutureBuilder<List<Map<String, String>>>(
             future: PartnerService().getChildLocations(
                 auth.currentUser!.uid, partner.standorte),
             builder: (context, snap) {
-              if (!snap.hasData) return const SizedBox.shrink();
+              if (!snap.hasData) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Center(child: CircularProgressIndicator()),
+                );
+              }
               return Column(
-                children: snap.data!
-                    .map((s) => _InfoRow(
-                          Icons.location_on_outlined,
-                          '${s['adresse']}, ${s['plz']} ${s['ort']}'.trim(),
-                        ))
-                    .toList(),
+                children: snap.data!.asMap().entries.map((e) {
+                  final s = e.value;
+                  return _LocationCard(
+                    label: 'Standort ${e.key + 2}',
+                    adresse: '${s['adresse']}, ${s['plz']} ${s['ort']}'.trim(),
+                    telefon: s['telefon'] ?? '',
+                    email: s['email'] ?? '',
+                    oeffnungszeiten: s['oeffnungszeiten'] ?? '',
+                  );
+                }).toList(),
               );
             },
           ),
-        _InfoRow(Icons.phone_outlined, partner.telefon),
-        if (partner.email.isNotEmpty)
-          _InfoRow(Icons.email_outlined, partner.email),
-        if (partner.website.isNotEmpty)
-          _InfoRow(Icons.language_outlined, partner.website),
-        if (partner.oeffnungszeiten.isNotEmpty)
-          _InfoRow(Icons.access_time_outlined, partner.oeffnungszeiten),
-        if (partner.berater.isNotEmpty)
-          _InfoRow(Icons.person_outline, partner.berater),
+          if (partner.berater.isNotEmpty)
+            _InfoRow(Icons.person_outline, partner.berater),
+        ],
 
         const SizedBox(height: 24),
 
@@ -545,6 +566,54 @@ class _ProfileCompleteness extends StatelessWidget {
                   .toList(),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LocationCard extends StatelessWidget {
+  final String label;
+  final String adresse;
+  final String telefon;
+  final String email;
+  final String website;
+  final String oeffnungszeiten;
+
+  const _LocationCard({
+    required this.label,
+    required this.adresse,
+    this.telefon = '',
+    this.email = '',
+    this.website = '',
+    this.oeffnungszeiten = '',
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.navy.withOpacity(0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.navy.withOpacity(0.12)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: AppColors.navy)),
+          const SizedBox(height: 8),
+          if (adresse.isNotEmpty) _InfoRow(Icons.location_on_outlined, adresse),
+          if (telefon.isNotEmpty) _InfoRow(Icons.phone_outlined, telefon),
+          if (email.isNotEmpty) _InfoRow(Icons.email_outlined, email),
+          if (website.isNotEmpty) _InfoRow(Icons.language_outlined, website),
+          if (oeffnungszeiten.isNotEmpty)
+            _InfoRow(Icons.access_time_outlined, oeffnungszeiten),
         ],
       ),
     );

@@ -55,6 +55,10 @@ class PartnerService {
           'adresse': d['adresse'] ?? '',
           'plz': d['plz'] ?? '',
           'ort': d['ort'] ?? '',
+          'telefon': d['telefon'] ?? '',
+          'email': d['email'] ?? '',
+          'oeffnungszeiten': d['oeffnungszeiten'] ?? '',
+          'leistungen': d['leistungen'] ?? '',
         });
       }
     }
