@@ -1,4 +1,3 @@
-import 'dart:io' show Platform;
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -134,7 +133,7 @@ class _HomeScreenState extends State<HomeScreen> {
       return;
     } catch (_) {}
     // App not installed — go to store
-    if (Platform.isAndroid) {
+    if (defaultTargetPlatform == TargetPlatform.android) {
       try {
         await launchUrl(
             Uri.parse('market://details?id=com.mycompany.unfallbericht'),
@@ -144,7 +143,7 @@ class _HomeScreenState extends State<HomeScreen> {
       await launchUrl(
           Uri.parse('https://play.google.com/store/apps/details?id=com.mycompany.unfallbericht'),
           mode: LaunchMode.externalApplication);
-    } else if (Platform.isIOS) {
+    } else if (defaultTargetPlatform == TargetPlatform.iOS) {
       await launchUrl(
           Uri.parse('https://apps.apple.com/app/id19209005258'),
           mode: LaunchMode.externalApplication);

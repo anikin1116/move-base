@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:http/http.dart' as http;
@@ -165,7 +165,7 @@ class _DashboardContent extends StatelessWidget {
 
         // Abo-Aktionen
         if (!partner.aktiv)
-          Platform.isIOS
+          defaultTargetPlatform == TargetPlatform.iOS
               ? _ActionCard(
                   icon: Icons.payment,
                   title: l10n.subscriptionNotActive,
