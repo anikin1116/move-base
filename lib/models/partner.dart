@@ -27,6 +27,7 @@ class Partner {
   final Map<String, String> zusatzInfo;
   final List<String> photos;
   final Map<String, int> klicks;
+  final List<Map<String, String>> standortListe;
 
   Partner({
     required this.id,
@@ -55,6 +56,7 @@ class Partner {
     required this.zusatzInfo,
     required this.photos,
     this.klicks = const {},
+    this.standortListe = const [],
   });
 
   bool get isPremium =>
@@ -96,6 +98,10 @@ class Partner {
       photos: d['photos'] is List ? List<String>.from(d['photos']) : [],
       klicks: (d['klicks'] as Map<String, dynamic>? ?? {})
           .map((k, v) => MapEntry(k, (v as num).toInt())),
+      standortListe: d['standortListe'] is List
+          ? List<Map<String, String>>.from(
+              (d['standortListe'] as List).map((e) => Map<String, String>.from(e as Map)))
+          : [],
     );
   }
 
@@ -133,6 +139,10 @@ class Partner {
       zusatzInfo: Map<String, String>.from(h['zusatzInfo'] ?? {}),
       photos: h['photos'] is List ? List<String>.from(h['photos']) : [],
       klicks: {},
+      standortListe: h['standortListe'] is List
+          ? List<Map<String, String>>.from(
+              (h['standortListe'] as List).map((e) => Map<String, String>.from(e as Map)))
+          : [],
     );
   }
 }

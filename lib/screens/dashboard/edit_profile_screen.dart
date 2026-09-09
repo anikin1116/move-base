@@ -33,6 +33,7 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
   late final TextEditingController _ersatzwagenHinweis;
 
   late List<String> _selectedZusatz;
+  late List<Map<String, TextEditingController>> _weitereStandorte;
   String? _logoUrl;
   File? _pickedLogo;
   bool _saving = false;
@@ -58,6 +59,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _selectedZusatz = List<String>.from(p.kategorien);
     _logoUrl = p.logo.isEmpty ? null : p.logo;
     _photoUrls = List<String>.from(p.photos);
+    _weitereStandorte = p.standortListe.map((s) => {
+      'adresse': TextEditingController(text: s['adresse'] ?? ''),
+      'plz': TextEditingController(text: s['plz'] ?? ''),
+      'ort': TextEditingController(text: s['ort'] ?? ''),
+    }).toList();
 
     // Init per-category controllers for already-selected zusatz categories
     final zusatzOptionen = kZusatzKategorien[p.kategorie] ?? [];
@@ -82,6 +88,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _ersatzwagenHinweis.dispose();
     for (final c in _zusatzTelefon.values) c.dispose();
     for (final c in _zusatzInfo.values) c.dispose();
+    for (final s in _weitereStandorte) {
+      s['adresse']?.dispose();
+      s['plz']?.dispose();
+      s['ort']?.dispose();
+    }
     super.dispose();
   }
 
@@ -202,6 +213,11 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       };
       if (_logoUrl != null) data['logo'] = _logoUrl;
       data['photos'] = _photoUrls;
+      data['standortListe'] = _weitereStandorte.map((s) => {
+        'adresse': s['adresse']!.text.trim(),
+        'plz': s['plz']!.text.trim(),
+        'ort': s['ort']!.text.trim(),
+      }).where((s) => s['adresse']!.isNotEmpty).toList();
 
       // Geocode address → save coordinates
       final coords = await _geocode(
@@ -374,6 +390,74 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                   child: _field(_ort, 'Ort', Icons.location_city_outlined)),
             ]),
             const SizedBox(height: 20),
+
+            // Weitere Standorte (nur wenn standorte > 1)
+            if (widget.partner.standorte > 1) ...[
+              _section('Weitere Standorte'),
+              ..._weitereStandorte.asMap().entries.map((entry) {
+                final i = entry.key;
+                final s = entry.value;
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.navy.withOpacity(0.04),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.navy.withOpacity(0.15)),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('Standort ${i + 2}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.navy)),
+                          IconButton(
+                            icon: const Icon(Icons.delete_outline,
+                                color: Colors.red, size: 20),
+                            onPressed: () => setState(() {
+                              s['adresse']?.dispose();
+                              s['plz']?.dispose();
+                              s['ort']?.dispose();
+                              _weitereStandorte.removeAt(i);
+                            }),
+                          ),
+                        ],
+                      ),
+                      _field(s['adresse']!, 'Adresse',
+                          Icons.location_on_outlined),
+                      Row(children: [
+                        SizedBox(
+                          width: 110,
+                          child: _field(
+                              s['plz']!, 'PLZ', Icons.markunread_mailbox_outlined),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                            child: _field(
+                                s['ort']!, 'Ort', Icons.location_city_outlined)),
+                      ]),
+                    ],
+                  ),
+                );
+              }),
+              if (_weitereStandorte.length < widget.partner.standorte - 1)
+                TextButton.icon(
+                  icon: const Icon(Icons.add_location_alt_outlined,
+                      color: AppColors.orange),
+                  label: const Text('Standort hinzufügen',
+                      style: TextStyle(color: AppColors.orange)),
+                  onPressed: () => setState(() => _weitereStandorte.add({
+                    'adresse': TextEditingController(),
+                    'plz': TextEditingController(),
+                    'ort': TextEditingController(),
+                  })),
+                ),
+              const SizedBox(height: 20),
+            ],
 
             // Kontakt
             _section('Kontakt'),

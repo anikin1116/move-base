@@ -205,6 +205,10 @@ class _DashboardContent extends StatelessWidget {
                 color: AppColors.navy)),
         const SizedBox(height: 12),
         _InfoRow(Icons.location_on_outlined, partner.fullAddress),
+        ...partner.standortListe.map((s) => _InfoRow(
+              Icons.location_on_outlined,
+              '${s['adresse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}'.trim(),
+            )),
         _InfoRow(Icons.phone_outlined, partner.telefon),
         if (partner.email.isNotEmpty)
           _InfoRow(Icons.email_outlined, partner.email),
