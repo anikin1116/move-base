@@ -205,10 +205,22 @@ class _DashboardContent extends StatelessWidget {
                 color: AppColors.navy)),
         const SizedBox(height: 12),
         _InfoRow(Icons.location_on_outlined, partner.fullAddress),
-        ...partner.standortListe.map((s) => _InfoRow(
-              Icons.location_on_outlined,
-              '${s['adresse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}'.trim(),
-            )),
+        if (partner.standorte > 1)
+          FutureBuilder<List<Map<String, String>>>(
+            future: PartnerService().getChildLocations(
+                auth.currentUser!.uid, partner.standorte),
+            builder: (context, snap) {
+              if (!snap.hasData) return const SizedBox.shrink();
+              return Column(
+                children: snap.data!
+                    .map((s) => _InfoRow(
+                          Icons.location_on_outlined,
+                          '${s['adresse']}, ${s['plz']} ${s['ort']}'.trim(),
+                        ))
+                    .toList(),
+              );
+            },
+          ),
         _InfoRow(Icons.phone_outlined, partner.telefon),
         if (partner.email.isNotEmpty)
           _InfoRow(Icons.email_outlined, partner.email),

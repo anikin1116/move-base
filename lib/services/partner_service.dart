@@ -45,6 +45,22 @@ class PartnerService {
         );
   }
 
+  Future<List<Map<String, String>>> getChildLocations(String uid, int standorte) async {
+    final List<Map<String, String>> result = [];
+    for (int i = 2; i <= standorte; i++) {
+      final doc = await _col.doc('${uid}_s$i').get();
+      if (doc.exists) {
+        final d = doc.data() as Map<String, dynamic>;
+        result.add({
+          'adresse': d['adresse'] ?? '',
+          'plz': d['plz'] ?? '',
+          'ort': d['ort'] ?? '',
+        });
+      }
+    }
+    return result;
+  }
+
   Future<void> updateProfile(String id, Map<String, dynamic> data) async {
     await _col.doc(id).update(data);
   }
