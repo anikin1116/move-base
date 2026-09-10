@@ -16,6 +16,7 @@ import '../../widgets/category_chip.dart';
 import '../../utils/seed_data.dart';
 import '../../utils/category_utils.dart';
 import '../arcade/arcade_screen.dart';
+import '../tankstellen/tankstellen_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -442,6 +443,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 fit: BoxFit.contain,
                 errorBuilder: (_, __, ___) => const Icon(
                     Icons.apps, color: AppColors.navy, size: 36),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(width: 1, height: 36, color: Colors.grey.shade200),
+            const SizedBox(width: 10),
+            // Tankstellen Button
+            GestureDetector(
+              onTap: () => context.push('/tankstellen'),
+              child: Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: AppColors.orange.withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.local_gas_station,
+                  color: AppColors.orange,
+                  size: 26,
+                ),
               ),
             ),
           ],
