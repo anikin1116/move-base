@@ -286,22 +286,78 @@ class _TankstellenScreenState extends State<TankstellenScreen>
                               ? const Center(
                                   child: CircularProgressIndicator(
                                       color: AppColors.navy))
-                              : _evStations == null
-                                  ? const Center(child: Text('Keine Daten'))
-                                  : _evStations!.isEmpty
-                                      ? const Center(
-                                          child: Text(
-                                              'Keine Ladestationen gefunden.'),
-                                        )
-                                      : ListView.builder(
-                                          padding: const EdgeInsets.symmetric(
-                                              horizontal: 12, vertical: 8),
-                                          itemCount: _evStations!.length,
-                                          itemBuilder: (_, idx) =>
-                                              _EvStationCard(
-                                                  station:
-                                                      _evStations![idx]),
+                              : (_evStations == null || _evStations!.isEmpty)
+                                  ? Center(
+                                      child: Padding(
+                                        padding: const EdgeInsets.all(24),
+                                        child: Column(
+                                          mainAxisSize: MainAxisSize.min,
+                                          children: [
+                                            const Icon(Icons.ev_station,
+                                                size: 48,
+                                                color: Color(0xFF2E7D32)),
+                                            const SizedBox(height: 12),
+                                            const Text(
+                                              'Ladesäulen-Daten\nkurz nicht verfügbar.',
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(
+                                                  fontSize: 15,
+                                                  fontWeight: FontWeight.w600),
+                                            ),
+                                            const SizedBox(height: 8),
+                                            const Text(
+                                              'Direkt in Google Maps suchen:',
+                                              textAlign: TextAlign.center,
+                                              style: TextStyle(
+                                                  fontSize: 13,
+                                                  color: AppColors.grey),
+                                            ),
+                                            const SizedBox(height: 16),
+                                            ElevatedButton.icon(
+                                              onPressed: () {
+                                                final url = Uri.parse(
+                                                    'https://www.google.com/maps/search/Elektro+Ladestation/@$_lat,$_lng,14z');
+                                                launchUrl(url,
+                                                    mode: LaunchMode
+                                                        .externalApplication);
+                                              },
+                                              icon: const Icon(
+                                                  Icons.map_outlined),
+                                              label: const Text(
+                                                  'In Google Maps öffnen'),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor:
+                                                    const Color(0xFF2E7D32),
+                                                foregroundColor: Colors.white,
+                                                shape: RoundedRectangleBorder(
+                                                    borderRadius:
+                                                        BorderRadius.circular(
+                                                            10)),
+                                              ),
+                                            ),
+                                            const SizedBox(height: 10),
+                                            TextButton.icon(
+                                              onPressed: () {
+                                                _evStations = null;
+                                                _loadEv();
+                                              },
+                                              icon: const Icon(Icons.refresh,
+                                                  size: 16),
+                                              label:
+                                                  const Text('Erneut versuchen'),
+                                            ),
+                                          ],
                                         ),
+                                      ),
+                                    )
+                                  : ListView.builder(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 12, vertical: 8),
+                                      itemCount: _evStations!.length,
+                                      itemBuilder: (_, idx) =>
+                                          _EvStationCard(
+                                              station: _evStations![idx]),
+                                    ),
                         ],
                       ),
                     ),

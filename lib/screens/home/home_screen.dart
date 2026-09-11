@@ -451,43 +451,29 @@ class _HomeScreenState extends State<HomeScreen> {
             // Tankstellen Button
             GestureDetector(
               onTap: () => context.push('/tankstellen'),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 38,
-                    height: 38,
-                    decoration: BoxDecoration(
-                      color: AppColors.orange,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(
-                        color: Colors.grey.shade300,
-                        width: 1.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: AppColors.orange.withOpacity(0.35),
-                          blurRadius: 6,
-                          offset: const Offset(0, 2),
-                        ),
-                      ],
-                    ),
-                    child: const Icon(
-                      Icons.local_gas_station,
-                      color: Colors.white,
-                      size: 20,
-                    ),
+              child: Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: AppColors.orange,
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.grey.shade300,
+                    width: 1.5,
                   ),
-                  const SizedBox(height: 2),
-                  const Text(
-                    'Tanken',
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: AppColors.orange,
-                      fontWeight: FontWeight.w600,
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.orange.withOpacity(0.35),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
                     ),
-                  ),
-                ],
+                  ],
+                ),
+                child: const Icon(
+                  Icons.local_gas_station,
+                  color: Colors.white,
+                  size: 28,
+                ),
               ),
             ),
           ],
