@@ -461,8 +461,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: AppColors.orange,
                       borderRadius: BorderRadius.circular(14),
                       border: Border.all(
-                        color: Colors.white,
-                        width: 2.5,
+                        color: Colors.grey.shade300,
+                        width: 1.5,
                       ),
                       boxShadow: [
                         BoxShadow(
