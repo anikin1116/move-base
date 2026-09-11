@@ -151,7 +151,7 @@ class _TankstellenScreenState extends State<TankstellenScreen>
       final resp = await http
           .post(
             Uri.parse('https://overpass-api.de/api/interpreter'),
-            body: query,
+            body: {'data': query},
           )
           .timeout(const Duration(seconds: 20));
       if (resp.statusCode == 200) {
