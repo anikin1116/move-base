@@ -154,12 +154,11 @@ class _TankstellenScreenState extends State<TankstellenScreen>
           '&maxresults=50'
           '&distance=15'
           '&distanceunit=KM'
-          '&compact=true'
-          '&verbose=false'
-          '&key=3f32206c-414e-481d-942f-ac1fdf352350');
-      final resp = await http
-          .get(uri, headers: {'Accept': 'application/json'})
-          .timeout(const Duration(seconds: 15));
+          '&countrycode=AT');
+      final resp = await http.get(uri, headers: {
+        'Accept': 'application/json',
+        'X-API-Key': '3f32206c-414e-481d-942f-ac1fdf352350',
+      }).timeout(const Duration(seconds: 15));
       if (resp.statusCode == 200) {
         final List<dynamic> raw =
             jsonDecode(utf8.decode(resp.bodyBytes)) as List<dynamic>;
