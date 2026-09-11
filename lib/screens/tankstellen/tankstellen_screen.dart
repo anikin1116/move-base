@@ -155,7 +155,8 @@ class _TankstellenScreenState extends State<TankstellenScreen>
           '&distance=15'
           '&distanceunit=KM'
           '&compact=true'
-          '&verbose=false');
+          '&verbose=false'
+          '&key=3f32206c-414e-481d-942f-ac1fdf352350');
       final resp = await http
           .get(uri, headers: {'Accept': 'application/json'})
           .timeout(const Duration(seconds: 15));
