@@ -149,16 +149,16 @@ class _TankstellenScreenState extends State<TankstellenScreen>
     try {
       bool loaded = false;
 
-      // 1) Open Charge Map (ohne countrycode – lat/lng+distance reicht)
+      // 1) OCM ohne output=json, Key als URL-Param
       try {
         final uri = Uri.parse(
             'https://api.openchargemap.io/v3/poi/'
-            '?output=json&latitude=$_lat&longitude=$_lng'
-            '&maxresults=50&distance=15&distanceunit=KM');
-        final r = await http.get(uri, headers: {
-          'Accept': 'application/json',
-          'X-API-Key': '3f32206c-414e-481d-942f-ac1fdf352350',
-        }).timeout(const Duration(seconds: 12));
+            '?latitude=$_lat&longitude=$_lng'
+            '&maxresults=50&distance=15&distanceunit=KM'
+            '&key=3f32206c-414e-481d-942f-ac1fdf352350');
+        final r = await http
+            .get(uri, headers: {'Accept': 'application/json'})
+            .timeout(const Duration(seconds: 15));
         if (r.statusCode == 200) {
           final List<dynamic> raw = jsonDecode(utf8.decode(r.bodyBytes));
           _evStations = raw
@@ -169,26 +169,30 @@ class _TankstellenScreenState extends State<TankstellenScreen>
         }
       } catch (_) {}
 
-      // 2) Overpass fallbacks
+      // 2) Overpass via GET (korrigiert 406-Fehler bei POST)
       if (!loaded) {
-        final query =
-            '[out:json];(node["amenity"="charging_station"](around:15000,$_lat,$_lng););out body;';
+        final encodedQuery = Uri.encodeQueryComponent(
+            '[out:json];(node["amenity"="charging_station"](around:15000,$_lat,$_lng););out body;');
         for (final host in [
-          'https://overpass.openstreetmap.ru/api/interpreter',
-          'https://overpass.kumi.systems/api/interpreter',
           'https://overpass-api.de/api/interpreter',
+          'https://overpass.kumi.systems/api/interpreter',
+          'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
         ]) {
           try {
-            final r = await http
-                .post(Uri.parse(host), body: {'data': query})
-                .timeout(const Duration(seconds: 15));
+            final r = await http.get(
+              Uri.parse('$host?data=$encodedQuery'),
+              headers: {
+                'Accept': 'application/json',
+                'User-Agent': 'MoveBase-App/1.0.4',
+              },
+            ).timeout(const Duration(seconds: 20));
             if (r.statusCode == 200) {
               final data =
                   jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
               final elements = data['elements'] as List<dynamic>? ?? [];
               _evStations = elements
-                  .map((e) =>
-                      _EvStation.fromOsm(e as Map<String, dynamic>, _lat!, _lng!))
+                  .map((e) => _EvStation.fromOsm(
+                      e as Map<String, dynamic>, _lat!, _lng!))
                   .toList()
                 ..sort((a, b) => a.distance.compareTo(b.distance));
               loaded = true;
