@@ -38,6 +38,7 @@ class _TankstellenScreenState extends State<TankstellenScreen>
 
   List<_EvStation>? _evStations;
   bool _evLoading = false;
+  final Set<String> _evFilter = {};
 
   @override
   void initState() {
@@ -385,19 +386,86 @@ class _TankstellenScreenState extends State<TankstellenScreen>
                                         ),
                                       ),
                                     )
-                                  : ListView.builder(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 12, vertical: 8),
-                                      itemCount: _evStations!.length,
-                                      itemBuilder: (_, idx) =>
-                                          _EvStationCard(
-                                              station: _evStations![idx]),
-                                    ),
+                                  : _buildEvList(),
                         ],
                       ),
                     ),
                   ],
                 ),
+    );
+  }
+
+  Widget _buildEvList() {
+    final allTypes = <String>{};
+    for (final s in _evStations!) {
+      allTypes.addAll(s.socketTypes);
+    }
+    final types = allTypes.toList()..sort();
+
+    final filtered = _evFilter.isEmpty
+        ? _evStations!
+        : _evStations!
+            .where((s) => s.socketTypes.any((t) => _evFilter.contains(t)))
+            .toList();
+
+    return Column(
+      children: [
+        if (types.isNotEmpty)
+          Container(
+            color: AppColors.lightGrey.withValues(alpha: 0.3),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  const Text('Filter:',
+                      style: TextStyle(fontSize: 12, color: AppColors.grey)),
+                  const SizedBox(width: 8),
+                  ...types.map((t) => Padding(
+                        padding: const EdgeInsets.only(right: 6),
+                        child: FilterChip(
+                          label: Text(t, style: const TextStyle(fontSize: 12)),
+                          selected: _evFilter.contains(t),
+                          onSelected: (on) => setState(() {
+                            on ? _evFilter.add(t) : _evFilter.remove(t);
+                          }),
+                          selectedColor:
+                              const Color(0xFF2E7D32).withValues(alpha: 0.15),
+                          checkmarkColor: const Color(0xFF2E7D32),
+                          labelStyle: TextStyle(
+                            color: _evFilter.contains(t)
+                                ? const Color(0xFF2E7D32)
+                                : AppColors.navy,
+                            fontWeight: _evFilter.contains(t)
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                          ),
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          materialTapTargetSize:
+                              MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      )),
+                ],
+              ),
+            ),
+          ),
+        Expanded(
+          child: filtered.isEmpty
+              ? const Center(
+                  child: Text(
+                    'Keine Stationen mit diesem Steckertyp gefunden.',
+                    textAlign: TextAlign.center,
+                  ),
+                )
+              : ListView.builder(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  itemCount: filtered.length,
+                  itemBuilder: (_, idx) =>
+                      _EvStationCard(station: filtered[idx]),
+                ),
+        ),
+      ],
     );
   }
 
