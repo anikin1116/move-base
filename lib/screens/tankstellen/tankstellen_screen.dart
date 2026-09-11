@@ -146,37 +146,33 @@ class _TankstellenScreenState extends State<TankstellenScreen>
     _evLoading = true;
     if (mounted) setState(() {});
     try {
-      final query =
-          '[out:json];(node["amenity"="charging_station"](around:15000,$_lat,$_lng););out body;';
-      final encodedQuery = Uri.encodeComponent(query);
-      http.Response? resp;
-      for (final host in [
-        'https://overpass.kumi.systems/api/interpreter',
-        'https://overpass-api.de/api/interpreter',
-      ]) {
-        try {
-          resp = await http
-              .get(Uri.parse('$host?data=$encodedQuery'),
-                  headers: {'Accept': 'application/json'})
-              .timeout(const Duration(seconds: 20));
-          if (resp.statusCode == 200) break;
-        } catch (_) {
-          resp = null;
-        }
-      }
-      if (resp == null) throw Exception('Kein Overpass-Server erreichbar');
+      final uri = Uri.parse(
+          'https://api.openchargemap.io/v3/poi/'
+          '?output=json'
+          '&latitude=$_lat'
+          '&longitude=$_lng'
+          '&maxresults=50'
+          '&distance=15'
+          '&distanceunit=KM'
+          '&compact=true'
+          '&verbose=false');
+      final resp = await http
+          .get(uri, headers: {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 15));
       if (resp.statusCode == 200) {
-        final data =
-            jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
-        final elements = data['elements'] as List<dynamic>? ?? [];
-        final stations = elements
-            .map((e) =>
-                _EvStation.fromJson(e as Map<String, dynamic>, _lat!, _lng!))
+        final List<dynamic> raw =
+            jsonDecode(utf8.decode(resp.bodyBytes)) as List<dynamic>;
+        final stations = raw
+            .map((j) => _EvStation.fromOcm(j as Map<String, dynamic>))
             .toList()
           ..sort((a, b) => a.distance.compareTo(b.distance));
-        _evStations = stations.take(50).toList();
+        _evStations = stations;
+      } else {
+        _evStations = [];
       }
-    } catch (_) {}
+    } catch (_) {
+      _evStations = [];
+    }
     _evLoading = false;
     if (mounted) setState(() {});
   }
@@ -574,30 +570,33 @@ class _EvStation {
     required this.socketTypes,
   });
 
-  factory _EvStation.fromJson(
-      Map<String, dynamic> j, double userLat, double userLng) {
-    final tags = j['tags'] as Map<String, dynamic>? ?? {};
-    final lat = (j['lat'] as num).toDouble();
-    final lng = (j['lon'] as num).toDouble();
+  factory _EvStation.fromOcm(Map<String, dynamic> j) {
+    final addr = j['AddressInfo'] as Map<String, dynamic>? ?? {};
+    final conns = j['Connections'] as List<dynamic>? ?? [];
 
-    final name = tags['name'] as String? ??
-        tags['operator'] as String? ??
-        'Ladestation';
+    final lat = (addr['Latitude'] as num?)?.toDouble() ?? 0.0;
+    final lng = (addr['Longitude'] as num?)?.toDouble() ?? 0.0;
+    final dist = (addr['Distance'] as num?)?.toDouble() ?? 0.0;
+    final name = addr['Title'] as String? ?? 'Ladestation';
+    final capacity = j['NumberOfPoints'] as int?;
 
-    final capacity = int.tryParse(tags['capacity'] as String? ?? '');
-
-    final sockets = <String>[];
-    if (tags.containsKey('socket:type2')) sockets.add('Type 2');
-    if (tags.containsKey('socket:type2_combo')) sockets.add('CCS');
-    if (tags.containsKey('socket:chademo')) sockets.add('CHAdeMO');
-    if (tags.containsKey('socket:type1')) sockets.add('Type 1');
-    if (tags.containsKey('socket:schuko')) sockets.add('Schuko');
-
-    const r = 6371.0;
-    final dLat = (lat - userLat) * 3.14159265 / 180;
-    final dLng = (lng - userLng) * 3.14159265 / 180;
-    final a = dLat * dLat + dLng * dLng;
-    final dist = r * 2 * (a < 1 ? a : 1);
+    final sockets = <String>{};
+    for (final conn in conns) {
+      final type = ((conn['ConnectionType'] as Map<String, dynamic>?)?['Title']
+              as String?) ??
+          '';
+      if (type.contains('Type 2') || type.contains('IEC 62196-2')) {
+        sockets.add('Type 2');
+      } else if (type.contains('CCS') || type.contains('Combo')) {
+        sockets.add('CCS');
+      } else if (type.contains('CHAdeMO')) {
+        sockets.add('CHAdeMO');
+      } else if (type.contains('Schuko') || type.contains('CEE 7')) {
+        sockets.add('Schuko');
+      } else if (type.contains('Type 1') || type.contains('J1772')) {
+        sockets.add('Type 1');
+      }
+    }
 
     return _EvStation(
       name: name,
@@ -605,7 +604,7 @@ class _EvStation {
       lng: lng,
       distance: dist,
       capacity: capacity,
-      socketTypes: sockets,
+      socketTypes: sockets.toList(),
     );
   }
 }
