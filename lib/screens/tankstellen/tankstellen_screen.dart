@@ -35,10 +35,13 @@ class _TankstellenScreenState extends State<TankstellenScreen>
   bool _sortByPrice = true;
   final Set<String> _loadingTypes = {};
 
+  List<_EvStation>? _evStations;
+  bool _evLoading = false;
+
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 3, vsync: this)
+    _tabCtrl = TabController(length: 4, vsync: this)
       ..addListener(() {
         if (!_tabCtrl.indexIsChanging) setState(() {});
       });
@@ -56,6 +59,7 @@ class _TankstellenScreenState extends State<TankstellenScreen>
       _loading = true;
       _error = null;
       _cache.clear();
+      _evStations = null;
     });
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -77,7 +81,7 @@ class _TankstellenScreenState extends State<TankstellenScreen>
         _lat = last.latitude;
         _lng = last.longitude;
         if (mounted) setState(() => _loading = false);
-        await Future.wait(_fuelTypes.map(_loadFuel));
+        await Future.wait([..._fuelTypes.map(_loadFuel), _loadEv()]);
         _refreshPosition();
       } else {
         final pos = await Geolocator.getCurrentPosition(
@@ -86,7 +90,7 @@ class _TankstellenScreenState extends State<TankstellenScreen>
         _lat = pos.latitude;
         _lng = pos.longitude;
         if (mounted) setState(() => _loading = false);
-        await Future.wait(_fuelTypes.map(_loadFuel));
+        await Future.wait([..._fuelTypes.map(_loadFuel), _loadEv()]);
       }
     } catch (e) {
       if (mounted) {
@@ -108,7 +112,8 @@ class _TankstellenScreenState extends State<TankstellenScreen>
         _lat = pos.latitude;
         _lng = pos.longitude;
         _cache.clear();
-        await Future.wait(_fuelTypes.map(_loadFuel));
+        _evStations = null;
+        await Future.wait([..._fuelTypes.map(_loadFuel), _loadEv()]);
       }
     } catch (_) {}
   }
@@ -133,6 +138,35 @@ class _TankstellenScreenState extends State<TankstellenScreen>
       }
     } catch (_) {}
     _loadingTypes.remove(fuelType);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadEv() async {
+    if (_evStations != null || _evLoading) return;
+    _evLoading = true;
+    if (mounted) setState(() {});
+    try {
+      final query =
+          '[out:json];(node["amenity"="charging_station"](around:15000,$_lat,$_lng););out body;';
+      final resp = await http
+          .post(
+            Uri.parse('https://overpass-api.de/api/interpreter'),
+            body: query,
+          )
+          .timeout(const Duration(seconds: 20));
+      if (resp.statusCode == 200) {
+        final data =
+            jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
+        final elements = data['elements'] as List<dynamic>? ?? [];
+        final stations = elements
+            .map((e) =>
+                _EvStation.fromJson(e as Map<String, dynamic>, _lat!, _lng!))
+            .toList()
+          ..sort((a, b) => a.distance.compareTo(b.distance));
+        _evStations = stations.take(50).toList();
+      }
+    } catch (_) {}
+    _evLoading = false;
     if (mounted) setState(() {});
   }
 
@@ -186,17 +220,22 @@ class _TankstellenScreenState extends State<TankstellenScreen>
           labelColor: AppColors.navy,
           unselectedLabelColor: Colors.grey,
           onTap: (i) {
-            final ft = _fuelTypes[i];
-            if (!_cache.containsKey(ft) && _lat != null) {
-              _loadFuel(ft);
+            if (i < 3) {
+              final ft = _fuelTypes[i];
+              if (!_cache.containsKey(ft) && _lat != null) _loadFuel(ft);
+            } else {
+              if (_evStations == null && _lat != null) _loadEv();
             }
           },
-          tabs: List.generate(
-              3,
-              (i) => Tab(
-                    icon: Icon(_fuelIcons[i], size: 18),
-                    text: _fuelLabels[i],
-                  )),
+          tabs: [
+            ...List.generate(
+                3,
+                (i) => Tab(
+                      icon: Icon(_fuelIcons[i], size: 18),
+                      text: _fuelLabels[i],
+                    )),
+            const Tab(icon: Icon(Icons.ev_station, size: 18), text: 'Elektro'),
+          ],
         ),
       ),
       body: _loading
@@ -206,34 +245,57 @@ class _TankstellenScreenState extends State<TankstellenScreen>
               ? _buildError()
               : Column(
                   children: [
-                    _buildSortBar(),
+                    if (_tabCtrl.index < 3) _buildSortBar(),
                     Expanded(
                       child: TabBarView(
                         controller: _tabCtrl,
-                        children: List.generate(3, (i) {
-                          final ft = _fuelTypes[i];
-                          final stations = _sorted(ft);
-                          if (!_cache.containsKey(ft)) {
-                            return const Center(
-                                child: CircularProgressIndicator(
-                                    color: AppColors.navy));
-                          }
-                          if (stations.isEmpty) {
-                            return const Center(
-                              child: Text('Keine Tankstellen gefunden.'),
+                        children: [
+                          ...List.generate(3, (i) {
+                            final ft = _fuelTypes[i];
+                            final stations = _sorted(ft);
+                            if (!_cache.containsKey(ft)) {
+                              return const Center(
+                                  child: CircularProgressIndicator(
+                                      color: AppColors.navy));
+                            }
+                            if (stations.isEmpty) {
+                              return const Center(
+                                child: Text('Keine Tankstellen gefunden.'),
+                              );
+                            }
+                            return ListView.builder(
+                              padding: const EdgeInsets.symmetric(
+                                  horizontal: 12, vertical: 8),
+                              itemCount: stations.length,
+                              itemBuilder: (_, idx) => _StationCard(
+                                station: stations[idx],
+                                rank: _sortByPrice ? idx + 1 : null,
+                                fuelLabel: _fuelLabels[i],
+                              ),
                             );
-                          }
-                          return ListView.builder(
-                            padding: const EdgeInsets.symmetric(
-                                horizontal: 12, vertical: 8),
-                            itemCount: stations.length,
-                            itemBuilder: (_, idx) => _StationCard(
-                              station: stations[idx],
-                              rank: _sortByPrice ? idx + 1 : null,
-                              fuelLabel: _fuelLabels[i],
-                            ),
-                          );
-                        }),
+                          }),
+                          // Elektro Tab
+                          _evLoading
+                              ? const Center(
+                                  child: CircularProgressIndicator(
+                                      color: AppColors.navy))
+                              : _evStations == null
+                                  ? const Center(child: Text('Keine Daten'))
+                                  : _evStations!.isEmpty
+                                      ? const Center(
+                                          child: Text(
+                                              'Keine Ladestationen gefunden.'),
+                                        )
+                                      : ListView.builder(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 12, vertical: 8),
+                                          itemCount: _evStations!.length,
+                                          itemBuilder: (_, idx) =>
+                                              _EvStationCard(
+                                                  station:
+                                                      _evStations![idx]),
+                                        ),
+                        ],
                       ),
                     ),
                   ],
@@ -482,6 +544,174 @@ class _MedalBadge extends StatelessWidget {
     );
   }
 }
+
+// ─── EV Charging Station Model ───────────────────────────────────────────────
+
+class _EvStation {
+  final String name;
+  final double lat, lng;
+  final double distance;
+  final int? capacity;
+  final List<String> socketTypes;
+
+  _EvStation({
+    required this.name,
+    required this.lat,
+    required this.lng,
+    required this.distance,
+    this.capacity,
+    required this.socketTypes,
+  });
+
+  factory _EvStation.fromJson(
+      Map<String, dynamic> j, double userLat, double userLng) {
+    final tags = j['tags'] as Map<String, dynamic>? ?? {};
+    final lat = (j['lat'] as num).toDouble();
+    final lng = (j['lon'] as num).toDouble();
+
+    final name = tags['name'] as String? ??
+        tags['operator'] as String? ??
+        'Ladestation';
+
+    final capacity = int.tryParse(tags['capacity'] as String? ?? '');
+
+    final sockets = <String>[];
+    if (tags.containsKey('socket:type2')) sockets.add('Type 2');
+    if (tags.containsKey('socket:type2_combo')) sockets.add('CCS');
+    if (tags.containsKey('socket:chademo')) sockets.add('CHAdeMO');
+    if (tags.containsKey('socket:type1')) sockets.add('Type 1');
+    if (tags.containsKey('socket:schuko')) sockets.add('Schuko');
+
+    const r = 6371.0;
+    final dLat = (lat - userLat) * 3.14159265 / 180;
+    final dLng = (lng - userLng) * 3.14159265 / 180;
+    final a = dLat * dLat + dLng * dLng;
+    final dist = r * 2 * (a < 1 ? a : 1);
+
+    return _EvStation(
+      name: name,
+      lat: lat,
+      lng: lng,
+      distance: dist,
+      capacity: capacity,
+      socketTypes: sockets,
+    );
+  }
+}
+
+// ─── EV Station Card ─────────────────────────────────────────────────────────
+
+class _EvStationCard extends StatelessWidget {
+  final _EvStation station;
+  const _EvStationCard({required this.station});
+
+  String get _distanceText {
+    if (station.distance < 1) return '${(station.distance * 1000).round()} m';
+    return '${station.distance.toStringAsFixed(1)} km';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      elevation: 1,
+      color: Colors.white,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          final url = Uri.parse(
+              'https://www.google.com/maps/dir/?api=1'
+              '&destination=${station.lat},${station.lng}'
+              '&travelmode=driving');
+          launchUrl(url, mode: LaunchMode.externalApplication);
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2E7D32).withOpacity(0.12),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                      color: const Color(0xFF2E7D32).withOpacity(0.4)),
+                ),
+                child: const Icon(Icons.ev_station,
+                    color: Color(0xFF2E7D32), size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(station.name,
+                        style: const TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                            color: AppColors.navy),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis),
+                    const SizedBox(height: 4),
+                    Row(children: [
+                      Icon(Icons.near_me_outlined,
+                          size: 13, color: Colors.grey[500]),
+                      const SizedBox(width: 3),
+                      Text(_distanceText,
+                          style:
+                              TextStyle(fontSize: 12, color: Colors.grey[500])),
+                      if (station.capacity != null) ...[
+                        const SizedBox(width: 10),
+                        Icon(Icons.power, size: 13, color: Colors.grey[500]),
+                        const SizedBox(width: 3),
+                        Text('${station.capacity} Ladepunkte',
+                            style: TextStyle(
+                                fontSize: 12, color: Colors.grey[500])),
+                      ],
+                    ]),
+                    if (station.socketTypes.isNotEmpty) ...[
+                      const SizedBox(height: 6),
+                      Wrap(
+                        spacing: 4,
+                        runSpacing: 4,
+                        children: station.socketTypes
+                            .map((s) => Container(
+                                  padding: const EdgeInsets.symmetric(
+                                      horizontal: 7, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: const Color(0xFF2E7D32)
+                                        .withOpacity(0.1),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                        color: const Color(0xFF2E7D32)
+                                            .withOpacity(0.3)),
+                                  ),
+                                  child: Text(s,
+                                      style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Color(0xFF2E7D32),
+                                          fontWeight: FontWeight.w500)),
+                                ))
+                            .toList(),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(Icons.open_in_new, size: 15, color: Colors.grey[400]),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// ─── Fuel Station Model ───────────────────────────────────────────────────────
 
 class _Station {
   final String name;
