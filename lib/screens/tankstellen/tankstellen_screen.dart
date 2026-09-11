@@ -148,12 +148,23 @@ class _TankstellenScreenState extends State<TankstellenScreen>
     try {
       final query =
           '[out:json];(node["amenity"="charging_station"](around:15000,$_lat,$_lng););out body;';
-      final resp = await http
-          .post(
-            Uri.parse('https://overpass-api.de/api/interpreter'),
-            body: {'data': query},
-          )
-          .timeout(const Duration(seconds: 20));
+      final encodedQuery = Uri.encodeComponent(query);
+      http.Response? resp;
+      for (final host in [
+        'https://overpass.kumi.systems/api/interpreter',
+        'https://overpass-api.de/api/interpreter',
+      ]) {
+        try {
+          resp = await http
+              .get(Uri.parse('$host?data=$encodedQuery'),
+                  headers: {'Accept': 'application/json'})
+              .timeout(const Duration(seconds: 20));
+          if (resp.statusCode == 200) break;
+        } catch (_) {
+          resp = null;
+        }
+      }
+      if (resp == null) throw Exception('Kein Overpass-Server erreichbar');
       if (resp.statusCode == 200) {
         final data =
             jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
