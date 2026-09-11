@@ -348,7 +348,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       child: Center(
                         child: Text(
-                          '${l10n.version} 1.0.3',
+                          '${l10n.version} 1.0.4',
                           style: TextStyle(
                               color: Colors.grey.shade400, fontSize: 12),
                         ),
