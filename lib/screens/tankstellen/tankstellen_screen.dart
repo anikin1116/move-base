@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -146,28 +147,58 @@ class _TankstellenScreenState extends State<TankstellenScreen>
     _evLoading = true;
     if (mounted) setState(() {});
     try {
-      final uri = Uri.parse(
-          'https://api.openchargemap.io/v3/poi/'
-          '?output=json'
-          '&latitude=$_lat'
-          '&longitude=$_lng'
-          '&maxresults=50'
-          '&distance=15'
-          '&distanceunit=KM'
-          '&countrycode=AT');
-      final resp = await http.get(uri, headers: {
-        'Accept': 'application/json',
-        'X-API-Key': '3f32206c-414e-481d-942f-ac1fdf352350',
-      }).timeout(const Duration(seconds: 15));
-      if (resp.statusCode == 200) {
-        final List<dynamic> raw =
-            jsonDecode(utf8.decode(resp.bodyBytes)) as List<dynamic>;
-        final stations = raw
-            .map((j) => _EvStation.fromOcm(j as Map<String, dynamic>))
-            .toList()
-          ..sort((a, b) => a.distance.compareTo(b.distance));
-        _evStations = stations;
-      } else {
+      bool loaded = false;
+
+      // 1) Open Charge Map (ohne countrycode – lat/lng+distance reicht)
+      try {
+        final uri = Uri.parse(
+            'https://api.openchargemap.io/v3/poi/'
+            '?output=json&latitude=$_lat&longitude=$_lng'
+            '&maxresults=50&distance=15&distanceunit=KM');
+        final r = await http.get(uri, headers: {
+          'Accept': 'application/json',
+          'X-API-Key': '3f32206c-414e-481d-942f-ac1fdf352350',
+        }).timeout(const Duration(seconds: 12));
+        if (r.statusCode == 200) {
+          final List<dynamic> raw = jsonDecode(utf8.decode(r.bodyBytes));
+          _evStations = raw
+              .map((j) => _EvStation.fromOcm(j as Map<String, dynamic>))
+              .toList()
+            ..sort((a, b) => a.distance.compareTo(b.distance));
+          loaded = true;
+        }
+      } catch (_) {}
+
+      // 2) Overpass fallbacks
+      if (!loaded) {
+        final query =
+            '[out:json];(node["amenity"="charging_station"](around:15000,$_lat,$_lng););out body;';
+        for (final host in [
+          'https://overpass.openstreetmap.ru/api/interpreter',
+          'https://overpass.kumi.systems/api/interpreter',
+          'https://overpass-api.de/api/interpreter',
+        ]) {
+          try {
+            final r = await http
+                .post(Uri.parse(host), body: {'data': query})
+                .timeout(const Duration(seconds: 15));
+            if (r.statusCode == 200) {
+              final data =
+                  jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+              final elements = data['elements'] as List<dynamic>? ?? [];
+              _evStations = elements
+                  .map((e) =>
+                      _EvStation.fromOsm(e as Map<String, dynamic>, _lat!, _lng!))
+                  .toList()
+                ..sort((a, b) => a.distance.compareTo(b.distance));
+              loaded = true;
+              break;
+            }
+          } catch (_) {}
+        }
+      }
+
+      if (!loaded) {
         _evStations = [];
       }
     } catch (_) {
@@ -661,6 +692,43 @@ class _EvStation {
       distance: dist,
       capacity: capacity,
       socketTypes: sockets.toList(),
+    );
+  }
+
+  factory _EvStation.fromOsm(
+      Map<String, dynamic> j, double userLat, double userLng) {
+    final lat = (j['lat'] as num?)?.toDouble() ?? 0.0;
+    final lng = (j['lon'] as num?)?.toDouble() ?? 0.0;
+    final tags = j['tags'] as Map<String, dynamic>? ?? {};
+    final name = (tags['name'] as String?) ??
+        (tags['operator'] as String?) ??
+        'Ladestation';
+    final capacityStr = tags['capacity'] as String?;
+    final capacity = capacityStr != null ? int.tryParse(capacityStr) : null;
+
+    final sockets = <String>[];
+    if (tags.containsKey('socket:type2')) sockets.add('Type 2');
+    if (tags.containsKey('socket:ccs')) sockets.add('CCS');
+    if (tags.containsKey('socket:chademo')) sockets.add('CHAdeMO');
+    if (tags.containsKey('socket:schuko')) sockets.add('Schuko');
+    if (tags.containsKey('socket:type1')) sockets.add('Type 1');
+
+    final dLat = (lat - userLat) * math.pi / 180;
+    final dLng = (lng - userLng) * math.pi / 180;
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(userLat * math.pi / 180) *
+            math.cos(lat * math.pi / 180) *
+            math.sin(dLng / 2) *
+            math.sin(dLng / 2);
+    final dist = 6371.0 * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+
+    return _EvStation(
+      name: name,
+      lat: lat,
+      lng: lng,
+      distance: dist,
+      capacity: capacity,
+      socketTypes: sockets,
     );
   }
 }
