@@ -455,11 +455,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Container(
-                    width: 52,
-                    height: 52,
+                    width: 38,
+                    height: 38,
                     decoration: BoxDecoration(
                       color: AppColors.orange,
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: BorderRadius.circular(10),
                       border: Border.all(
                         color: Colors.grey.shade300,
                         width: 1.5,
@@ -467,22 +467,22 @@ class _HomeScreenState extends State<HomeScreen> {
                       boxShadow: [
                         BoxShadow(
                           color: AppColors.orange.withOpacity(0.35),
-                          blurRadius: 8,
-                          offset: const Offset(0, 3),
+                          blurRadius: 6,
+                          offset: const Offset(0, 2),
                         ),
                       ],
                     ),
                     child: const Icon(
                       Icons.local_gas_station,
                       color: Colors.white,
-                      size: 28,
+                      size: 20,
                     ),
                   ),
-                  const SizedBox(height: 3),
+                  const SizedBox(height: 2),
                   const Text(
                     'Tanken',
                     style: TextStyle(
-                      fontSize: 10,
+                      fontSize: 9,
                       color: AppColors.orange,
                       fontWeight: FontWeight.w600,
                     ),
