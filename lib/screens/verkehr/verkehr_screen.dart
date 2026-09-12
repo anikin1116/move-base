@@ -73,8 +73,10 @@ class _VerkehrScreenState extends State<VerkehrScreen> {
     if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
       throw Exception('Standortberechtigung verweigert');
     }
+    final last = await Geolocator.getLastKnownPosition();
+    if (last != null) return last;
     return Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.medium));
+        locationSettings: const LocationSettings(accuracy: LocationAccuracy.low));
   }
 
   List<double> _bbox(double lat, double lon, double radiusKm) {
