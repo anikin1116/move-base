@@ -17,6 +17,7 @@ import '../../utils/seed_data.dart';
 import '../../utils/category_utils.dart';
 import '../arcade/arcade_screen.dart';
 import '../tankstellen/tankstellen_screen.dart';
+import '../verkehr/verkehr_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -471,6 +472,37 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 child: const Icon(
                   Icons.local_gas_station,
+                  color: Colors.white,
+                  size: 28,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Container(width: 1, height: 36, color: Colors.grey.shade200),
+            const SizedBox(width: 10),
+            // Verkehr Button
+            GestureDetector(
+              onTap: () => context.push('/verkehr'),
+              child: Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFCC2200),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: Colors.grey.shade300,
+                    width: 1.5,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFCC2200).withOpacity(0.35),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: const Icon(
+                  Icons.traffic,
                   color: Colors.white,
                   size: 28,
                 ),

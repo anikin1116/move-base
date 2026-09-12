@@ -22,6 +22,7 @@ import 'screens/dashboard/edit_profile_screen.dart';
 import 'screens/legal/legal_screen.dart';
 import 'screens/map/map_screen.dart';
 import 'screens/tankstellen/tankstellen_screen.dart';
+import 'screens/verkehr/verkehr_screen.dart';
 import 'models/partner.dart';
 
 void main() async {
@@ -63,6 +64,7 @@ final _router = GoRouter(
     ),
     GoRoute(path: '/map', builder: (_, __) => const MapScreen()),
     GoRoute(path: '/tankstellen', builder: (_, __) => const TankstellenScreen()),
+    GoRoute(path: '/verkehr', builder: (_, __) => const VerkehrScreen()),
     GoRoute(path: '/agb', builder: (_, __) => const AgbScreen()),
     GoRoute(path: '/datenschutz', builder: (_, __) => const DatenschutzScreen()),
     GoRoute(path: '/impressum', builder: (_, __) => const ImpressumScreen()),
