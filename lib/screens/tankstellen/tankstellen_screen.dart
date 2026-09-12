@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -143,74 +144,85 @@ class _TankstellenScreenState extends State<TankstellenScreen>
     if (mounted) setState(() {});
   }
 
+  static const _overpassHosts = [
+    'https://overpass-api.de/api/interpreter',
+    'https://overpass.kumi.systems/api/interpreter',
+    'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
+  ];
+
   Future<void> _loadEv() async {
     if (_evStations != null || _evLoading) return;
     _evLoading = true;
     if (mounted) setState(() {});
-    try {
-      bool loaded = false;
 
-      // 1) OCM ohne output=json, Key als URL-Param
-      try {
-        final uri = Uri.parse(
-            'https://api.openchargemap.io/v3/poi/'
-            '?latitude=$_lat&longitude=$_lng'
-            '&maxresults=50&distance=15&distanceunit=KM'
-            '&key=3f32206c-414e-481d-942f-ac1fdf352350');
-        final r = await http
-            .get(uri, headers: {'Accept': 'application/json'})
-            .timeout(const Duration(seconds: 15));
-        if (r.statusCode == 200) {
-          final List<dynamic> raw = jsonDecode(utf8.decode(r.bodyBytes));
-          _evStations = raw
-              .map((j) => _EvStation.fromOcm(j as Map<String, dynamic>))
-              .toList()
-            ..sort((a, b) => a.distance.compareTo(b.distance));
-          loaded = true;
-        }
-      } catch (_) {}
+    // Alle Quellen parallel starten – erste erfolgreiche Antwort gewinnt
+    final completer = Completer<List<_EvStation>?>();
+    var remaining = 1 + _overpassHosts.length;
 
-      // 2) Overpass via GET (korrigiert 406-Fehler bei POST)
-      if (!loaded) {
-        final encodedQuery = Uri.encodeQueryComponent(
-            '[out:json];(node["amenity"="charging_station"](around:15000,$_lat,$_lng););out body;');
-        for (final host in [
-          'https://overpass-api.de/api/interpreter',
-          'https://overpass.kumi.systems/api/interpreter',
-          'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
-        ]) {
-          try {
-            final r = await http.get(
-              Uri.parse('$host?data=$encodedQuery'),
-              headers: {
-                'Accept': 'application/json',
-                'User-Agent': 'MoveBase-App/1.0.4',
-              },
-            ).timeout(const Duration(seconds: 20));
-            if (r.statusCode == 200) {
-              final data =
-                  jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
-              final elements = data['elements'] as List<dynamic>? ?? [];
-              _evStations = elements
-                  .map((e) => _EvStation.fromOsm(
-                      e as Map<String, dynamic>, _lat!, _lng!))
-                  .toList()
-                ..sort((a, b) => a.distance.compareTo(b.distance));
-              loaded = true;
-              break;
-            }
-          } catch (_) {}
-        }
+    void onResult(List<_EvStation>? result) {
+      if (completer.isCompleted) return;
+      if (result != null) {
+        completer.complete(result);
+      } else {
+        remaining--;
+        if (remaining == 0) completer.complete(null);
       }
-
-      if (!loaded) {
-        _evStations = [];
-      }
-    } catch (_) {
-      _evStations = [];
     }
+
+    _tryOcm().then(onResult, onError: (_) => onResult(null));
+    for (final host in _overpassHosts) {
+      _tryOverpassHost(host).then(onResult, onError: (_) => onResult(null));
+    }
+
+    _evStations = await completer.future ?? [];
     _evLoading = false;
     if (mounted) setState(() {});
+  }
+
+  Future<List<_EvStation>?> _tryOcm() async {
+    try {
+      final uri = Uri.parse(
+          'https://api.openchargemap.io/v3/poi/'
+          '?latitude=$_lat&longitude=$_lng'
+          '&maxresults=50&distance=15&distanceunit=KM'
+          '&key=3f32206c-414e-481d-942f-ac1fdf352350');
+      final r = await http
+          .get(uri, headers: {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 10));
+      if (r.statusCode == 200) {
+        final List<dynamic> raw = jsonDecode(utf8.decode(r.bodyBytes));
+        return raw
+            .map((j) => _EvStation.fromOcm(j as Map<String, dynamic>))
+            .toList()
+          ..sort((a, b) => a.distance.compareTo(b.distance));
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  Future<List<_EvStation>?> _tryOverpassHost(String host) async {
+    try {
+      final encodedQuery = Uri.encodeQueryComponent(
+          '[out:json];(node["amenity"="charging_station"](around:15000,$_lat,$_lng););out body;');
+      final r = await http.get(
+        Uri.parse('$host?data=$encodedQuery'),
+        headers: {
+          'Accept': 'application/json',
+          'User-Agent': 'MoveBase-App/1.0.4',
+        },
+      ).timeout(const Duration(seconds: 15));
+      if (r.statusCode == 200) {
+        final data =
+            jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+        final elements = data['elements'] as List<dynamic>? ?? [];
+        return elements
+            .map((e) =>
+                _EvStation.fromOsm(e as Map<String, dynamic>, _lat!, _lng!))
+            .toList()
+          ..sort((a, b) => a.distance.compareTo(b.distance));
+      }
+    } catch (_) {}
+    return null;
   }
 
   List<_Station> _sorted(String fuelType) {
