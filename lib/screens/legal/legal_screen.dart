@@ -106,6 +106,8 @@ class DatenschutzScreen extends StatelessWidget {
             'Beim Besuch der App: Geräteinformationen, App-Version – Rechtsgrundlage: berechtigtes Interesse (Art. 6 Abs. 1 lit. f DSGVO)',
             'Bei der Partner-Registrierung: Name, Firma, Adresse, E-Mail, Telefon – Rechtsgrundlage: Vertragserfüllung (Art. 6 Abs. 1 lit. b DSGVO)',
             'Bei der Partnersuche: GPS-Standort (optional, nur zur Entfernungsanzeige nahegelegener Partnerbetriebe) – Rechtsgrundlage: Einwilligung (Art. 6 Abs. 1 lit. a DSGVO)',
+            'Tankstellen & Ladesäulen: GPS-Standort wird als anonymisierter Suchradius an externe Dienste übermittelt: E-Control Austria (e-control.at), OpenChargeMap (openchargemap.io), OpenStreetMap Overpass API (overpass-api.de) – Rechtsgrundlage: Einwilligung (Art. 6 Abs. 1 lit. a DSGVO)',
+            'Verkehr & Staus: GPS-Standort wird als anonymisierter Suchradius (Bounding Box) an TomTom N.V. (tomtom.com) übermittelt – Rechtsgrundlage: Einwilligung (Art. 6 Abs. 1 lit. a DSGVO)',
             'Zahlungsdaten werden ausschließlich über Stripe verarbeitet – wir speichern keine Kreditkartendaten. https://stripe.com/at/legal/privacy-center',
           ],
           paragraphs: [
@@ -119,6 +121,7 @@ class DatenschutzScreen extends StatelessWidget {
             'Vercel: Hosting der Website (US-Anbieter mit EU-Infrastruktur, DPA vorhanden)',
             'Stripe: Zahlungsabwicklung (PCI-DSS zertifiziert)',
             'Resend: Versand von Transaktions-E-Mails – resend.com',
+            'TomTom N.V.: Verkehrsdaten-Abfrage – tomtom.com/legal/privacy-statement',
           ],
           paragraphs: [
             'Firebase (Google) und Stripe sind US-amerikanische Unternehmen. Auch wenn die Datenverarbeitung primär auf europäischen Servern erfolgt, kann es zu einer Datenübermittlung in die USA kommen. Diese erfolgt auf Grundlage der Standardvertragsklauseln der EU-Kommission gemäß Art. 46 Abs. 2 lit. c DSGVO.',
@@ -142,7 +145,7 @@ class DatenschutzScreen extends StatelessWidget {
           heading: '5. Speicherdauer',
           paragraphs: [
             'Nach Kündigung eines Partner-Abonnements werden Ihre Daten nach 30 Tagen gelöscht.\n\nIP-Adressen aus Server-Logs werden nach 7 Tagen automatisch gelöscht.',
-            'Letzte Aktualisierung: 02.08.2026',
+            'Letzte Aktualisierung: 12.09.2026',
           ],
         ),
       ],
