@@ -16,7 +16,7 @@ class VerkehrScreen extends StatefulWidget {
 
 class _VerkehrScreenState extends State<VerkehrScreen> {
   static const _apiKey = 'zX9aptgGMDUF3melZZ7FE7wGxzKSPjQ9';
-  static const _radiusKm = 20.0;
+  static const _radiusKm = 50.0;
 
   List<_Incident>? _incidents;
   bool _loading = false;
@@ -148,7 +148,7 @@ class _VerkehrScreenState extends State<VerkehrScreen> {
             Icon(Icons.check_circle_outline, size: 60, color: Colors.green),
             SizedBox(height: 14),
             Text(
-              'Keine Verkehrsstörungen\nim Umkreis von 20 km',
+              'Keine Verkehrsstörungen\nim Umkreis von 50 km',
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 16),
             ),
