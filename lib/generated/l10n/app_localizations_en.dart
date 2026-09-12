@@ -445,4 +445,56 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get mapNoLocation => 'No location available';
+
+  @override
+  String get tsTitle => 'Fuel Stations';
+
+  @override
+  String get tsEvTab => 'EV';
+
+  @override
+  String get tsSortBy => 'Sort:';
+
+  @override
+  String get tsSortPrice => 'Price';
+
+  @override
+  String get tsSortDistance => 'Distance';
+
+  @override
+  String get tsGpsDisabled => 'GPS disabled. Please enable GPS.';
+
+  @override
+  String get tsLocationDenied => 'Location permission denied.';
+
+  @override
+  String get tsNoFuelStations => 'No fuel stations found.';
+
+  @override
+  String get tsEvUnavailable =>
+      'Charging station data\ntemporarily unavailable.';
+
+  @override
+  String get tsSearchInMaps => 'Search directly in Google Maps:';
+
+  @override
+  String get tsOpenInMaps => 'Open in Google Maps';
+
+  @override
+  String get tsTryAgain => 'Try again';
+
+  @override
+  String get tsNoEvFilter => 'No stations for this connector type.';
+
+  @override
+  String get tsFilterLabel => 'Filter:';
+
+  @override
+  String get tsChargingPoints => 'charging points';
+
+  @override
+  String get tsFuelStation => 'Fuel Station';
+
+  @override
+  String get tsChargingStation => 'Charging Station';
 }

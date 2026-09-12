@@ -448,4 +448,55 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get mapNoLocation => 'Kein Standort verfügbar';
+
+  @override
+  String get tsTitle => 'Tankstellen';
+
+  @override
+  String get tsEvTab => 'Elektro';
+
+  @override
+  String get tsSortBy => 'Sortieren:';
+
+  @override
+  String get tsSortPrice => 'Preis';
+
+  @override
+  String get tsSortDistance => 'Entfernung';
+
+  @override
+  String get tsGpsDisabled => 'GPS deaktiviert. Bitte GPS einschalten.';
+
+  @override
+  String get tsLocationDenied => 'Standortberechtigung verweigert.';
+
+  @override
+  String get tsNoFuelStations => 'Keine Tankstellen gefunden.';
+
+  @override
+  String get tsEvUnavailable => 'Ladesäulen-Daten\nkurz nicht verfügbar.';
+
+  @override
+  String get tsSearchInMaps => 'Direkt in Google Maps suchen:';
+
+  @override
+  String get tsOpenInMaps => 'In Google Maps öffnen';
+
+  @override
+  String get tsTryAgain => 'Erneut versuchen';
+
+  @override
+  String get tsNoEvFilter => 'Keine Stationen mit diesem Steckertyp gefunden.';
+
+  @override
+  String get tsFilterLabel => 'Filter:';
+
+  @override
+  String get tsChargingPoints => 'Ladepunkte';
+
+  @override
+  String get tsFuelStation => 'Tankstelle';
+
+  @override
+  String get tsChargingStation => 'Ladestation';
 }

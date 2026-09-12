@@ -8,6 +8,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../generated/l10n/app_localizations.dart';
 import '../../theme/app_theme.dart';
 
 class TankstellenScreen extends StatefulWidget {
@@ -67,7 +68,7 @@ class _TankstellenScreenState extends State<TankstellenScreen>
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        throw Exception('GPS deaktiviert. Bitte GPS einschalten.');
+        throw Exception(AppLocalizations.of(context).tsGpsDisabled);
       }
 
       LocationPermission perm = await Geolocator.checkPermission();
@@ -76,7 +77,7 @@ class _TankstellenScreenState extends State<TankstellenScreen>
       }
       if (perm == LocationPermission.denied ||
           perm == LocationPermission.deniedForever) {
-        throw Exception('Standortberechtigung verweigert.');
+        throw Exception(AppLocalizations.of(context).tsLocationDenied);
       }
 
       final last = await Geolocator.getLastKnownPosition();
@@ -253,9 +254,9 @@ class _TankstellenScreenState extends State<TankstellenScreen>
           icon: const Icon(Icons.arrow_back, color: AppColors.navy),
           onPressed: () => Navigator.of(context).pop(),
         ),
-        title: const Text(
-          'Tankstellen',
-          style: TextStyle(
+        title: Text(
+          AppLocalizations.of(context).tsTitle,
+          style: const TextStyle(
               color: AppColors.navy,
               fontWeight: FontWeight.bold,
               fontSize: 18),
@@ -289,7 +290,7 @@ class _TankstellenScreenState extends State<TankstellenScreen>
                       icon: Icon(_fuelIcons[i], size: 18),
                       text: _fuelLabels[i],
                     )),
-            const Tab(icon: Icon(Icons.ev_station, size: 18), text: 'Elektro'),
+            Tab(icon: const Icon(Icons.ev_station, size: 18), text: AppLocalizations.of(context).tsEvTab),
           ],
         ),
       ),
@@ -314,8 +315,8 @@ class _TankstellenScreenState extends State<TankstellenScreen>
                                       color: AppColors.navy));
                             }
                             if (stations.isEmpty) {
-                              return const Center(
-                                child: Text('Keine Tankstellen gefunden.'),
+                              return Center(
+                                child: Text(AppLocalizations.of(context).tsNoFuelStations),
                               );
                             }
                             return ListView.builder(
@@ -345,18 +346,18 @@ class _TankstellenScreenState extends State<TankstellenScreen>
                                                 size: 48,
                                                 color: Color(0xFF2E7D32)),
                                             const SizedBox(height: 12),
-                                            const Text(
-                                              'Ladesäulen-Daten\nkurz nicht verfügbar.',
+                                            Text(
+                                              AppLocalizations.of(context).tsEvUnavailable,
                                               textAlign: TextAlign.center,
-                                              style: TextStyle(
+                                              style: const TextStyle(
                                                   fontSize: 15,
                                                   fontWeight: FontWeight.w600),
                                             ),
                                             const SizedBox(height: 8),
-                                            const Text(
-                                              'Direkt in Google Maps suchen:',
+                                            Text(
+                                              AppLocalizations.of(context).tsSearchInMaps,
                                               textAlign: TextAlign.center,
-                                              style: TextStyle(
+                                              style: const TextStyle(
                                                   fontSize: 13,
                                                   color: AppColors.grey),
                                             ),
@@ -371,8 +372,8 @@ class _TankstellenScreenState extends State<TankstellenScreen>
                                               },
                                               icon: const Icon(
                                                   Icons.map_outlined),
-                                              label: const Text(
-                                                  'In Google Maps öffnen'),
+                                              label: Text(
+                                                  AppLocalizations.of(context).tsOpenInMaps),
                                               style: ElevatedButton.styleFrom(
                                                 backgroundColor:
                                                     const Color(0xFF2E7D32),
@@ -392,7 +393,7 @@ class _TankstellenScreenState extends State<TankstellenScreen>
                                               icon: const Icon(Icons.refresh,
                                                   size: 16),
                                               label:
-                                                  const Text('Erneut versuchen'),
+                                                  Text(AppLocalizations.of(context).tsTryAgain),
                                             ),
                                           ],
                                         ),
@@ -430,8 +431,8 @@ class _TankstellenScreenState extends State<TankstellenScreen>
               scrollDirection: Axis.horizontal,
               child: Row(
                 children: [
-                  const Text('Filter:',
-                      style: TextStyle(fontSize: 12, color: AppColors.grey)),
+                  Text(AppLocalizations.of(context).tsFilterLabel,
+                      style: const TextStyle(fontSize: 12, color: AppColors.grey)),
                   const SizedBox(width: 8),
                   ...types.map((t) => Padding(
                         padding: const EdgeInsets.only(right: 6),
@@ -463,9 +464,9 @@ class _TankstellenScreenState extends State<TankstellenScreen>
           ),
         Expanded(
           child: filtered.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
-                    'Keine Stationen mit diesem Steckertyp gefunden.',
+                    AppLocalizations.of(context).tsNoEvFilter,
                     textAlign: TextAlign.center,
                   ),
                 )
@@ -487,17 +488,17 @@ class _TankstellenScreenState extends State<TankstellenScreen>
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          const Text('Sortieren:',
-              style: TextStyle(fontSize: 13, color: AppColors.grey)),
+          Text(AppLocalizations.of(context).tsSortBy,
+              style: const TextStyle(fontSize: 13, color: AppColors.grey)),
           const SizedBox(width: 10),
           _SortChip(
-            label: 'Preis',
+            label: AppLocalizations.of(context).tsSortPrice,
             selected: _sortByPrice,
             onTap: () => setState(() => _sortByPrice = true),
           ),
           const SizedBox(width: 8),
           _SortChip(
-            label: 'Entfernung',
+            label: AppLocalizations.of(context).tsSortDistance,
             selected: !_sortByPrice,
             onTap: () => setState(() => _sortByPrice = false),
           ),
@@ -529,7 +530,7 @@ class _TankstellenScreenState extends State<TankstellenScreen>
             ElevatedButton.icon(
               onPressed: _init,
               icon: const Icon(Icons.refresh),
-              label: const Text('Erneut versuchen'),
+              label: Text(AppLocalizations.of(context).tsTryAgain),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.navy,
                 foregroundColor: Colors.white,
@@ -885,7 +886,7 @@ class _EvStationCard extends StatelessWidget {
                         const SizedBox(width: 10),
                         Icon(Icons.power, size: 13, color: Colors.grey[500]),
                         const SizedBox(width: 3),
-                        Text('${station.capacity} Ladepunkte',
+                        Text('${station.capacity} ${AppLocalizations.of(context).tsChargingPoints}',
                             style: TextStyle(
                                 fontSize: 12, color: Colors.grey[500])),
                       ],

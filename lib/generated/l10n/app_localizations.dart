@@ -955,6 +955,108 @@ abstract class AppLocalizations {
   /// In de, this message translates to:
   /// **'Kein Standort verfügbar'**
   String get mapNoLocation;
+
+  /// No description provided for @tsTitle.
+  ///
+  /// In de, this message translates to:
+  /// **'Tankstellen'**
+  String get tsTitle;
+
+  /// No description provided for @tsEvTab.
+  ///
+  /// In de, this message translates to:
+  /// **'Elektro'**
+  String get tsEvTab;
+
+  /// No description provided for @tsSortBy.
+  ///
+  /// In de, this message translates to:
+  /// **'Sortieren:'**
+  String get tsSortBy;
+
+  /// No description provided for @tsSortPrice.
+  ///
+  /// In de, this message translates to:
+  /// **'Preis'**
+  String get tsSortPrice;
+
+  /// No description provided for @tsSortDistance.
+  ///
+  /// In de, this message translates to:
+  /// **'Entfernung'**
+  String get tsSortDistance;
+
+  /// No description provided for @tsGpsDisabled.
+  ///
+  /// In de, this message translates to:
+  /// **'GPS deaktiviert. Bitte GPS einschalten.'**
+  String get tsGpsDisabled;
+
+  /// No description provided for @tsLocationDenied.
+  ///
+  /// In de, this message translates to:
+  /// **'Standortberechtigung verweigert.'**
+  String get tsLocationDenied;
+
+  /// No description provided for @tsNoFuelStations.
+  ///
+  /// In de, this message translates to:
+  /// **'Keine Tankstellen gefunden.'**
+  String get tsNoFuelStations;
+
+  /// No description provided for @tsEvUnavailable.
+  ///
+  /// In de, this message translates to:
+  /// **'Ladesäulen-Daten\nkurz nicht verfügbar.'**
+  String get tsEvUnavailable;
+
+  /// No description provided for @tsSearchInMaps.
+  ///
+  /// In de, this message translates to:
+  /// **'Direkt in Google Maps suchen:'**
+  String get tsSearchInMaps;
+
+  /// No description provided for @tsOpenInMaps.
+  ///
+  /// In de, this message translates to:
+  /// **'In Google Maps öffnen'**
+  String get tsOpenInMaps;
+
+  /// No description provided for @tsTryAgain.
+  ///
+  /// In de, this message translates to:
+  /// **'Erneut versuchen'**
+  String get tsTryAgain;
+
+  /// No description provided for @tsNoEvFilter.
+  ///
+  /// In de, this message translates to:
+  /// **'Keine Stationen mit diesem Steckertyp gefunden.'**
+  String get tsNoEvFilter;
+
+  /// No description provided for @tsFilterLabel.
+  ///
+  /// In de, this message translates to:
+  /// **'Filter:'**
+  String get tsFilterLabel;
+
+  /// No description provided for @tsChargingPoints.
+  ///
+  /// In de, this message translates to:
+  /// **'Ladepunkte'**
+  String get tsChargingPoints;
+
+  /// No description provided for @tsFuelStation.
+  ///
+  /// In de, this message translates to:
+  /// **'Tankstelle'**
+  String get tsFuelStation;
+
+  /// No description provided for @tsChargingStation.
+  ///
+  /// In de, this message translates to:
+  /// **'Ladestation'**
+  String get tsChargingStation;
 }
 
 class _AppLocalizationsDelegate

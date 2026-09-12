@@ -157,5 +157,23 @@
 
   "photos": "Photos",
   "map": "Map",
-  "mapNoLocation": "No location available"
+  "mapNoLocation": "No location available",
+
+  "tsTitle": "Fuel Stations",
+  "tsEvTab": "EV",
+  "tsSortBy": "Sort:",
+  "tsSortPrice": "Price",
+  "tsSortDistance": "Distance",
+  "tsGpsDisabled": "GPS disabled. Please enable GPS.",
+  "tsLocationDenied": "Location permission denied.",
+  "tsNoFuelStations": "No fuel stations found.",
+  "tsEvUnavailable": "Charging station data\ntemporarily unavailable.",
+  "tsSearchInMaps": "Search directly in Google Maps:",
+  "tsOpenInMaps": "Open in Google Maps",
+  "tsTryAgain": "Try again",
+  "tsNoEvFilter": "No stations for this connector type.",
+  "tsFilterLabel": "Filter:",
+  "tsChargingPoints": "charging points",
+  "tsFuelStation": "Fuel Station",
+  "tsChargingStation": "Charging Station"
 }

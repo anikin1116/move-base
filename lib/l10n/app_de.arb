@@ -157,5 +157,23 @@
 
   "photos": "Fotos",
   "map": "Karte",
-  "mapNoLocation": "Kein Standort verfügbar"
+  "mapNoLocation": "Kein Standort verfügbar",
+
+  "tsTitle": "Tankstellen",
+  "tsEvTab": "Elektro",
+  "tsSortBy": "Sortieren:",
+  "tsSortPrice": "Preis",
+  "tsSortDistance": "Entfernung",
+  "tsGpsDisabled": "GPS deaktiviert. Bitte GPS einschalten.",
+  "tsLocationDenied": "Standortberechtigung verweigert.",
+  "tsNoFuelStations": "Keine Tankstellen gefunden.",
+  "tsEvUnavailable": "Ladesäulen-Daten\nkurz nicht verfügbar.",
+  "tsSearchInMaps": "Direkt in Google Maps suchen:",
+  "tsOpenInMaps": "In Google Maps öffnen",
+  "tsTryAgain": "Erneut versuchen",
+  "tsNoEvFilter": "Keine Stationen mit diesem Steckertyp gefunden.",
+  "tsFilterLabel": "Filter:",
+  "tsChargingPoints": "Ladepunkte",
+  "tsFuelStation": "Tankstelle",
+  "tsChargingStation": "Ladestation"
 }
