@@ -2,6 +2,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:in_app_review/in_app_review.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../generated/l10n/app_localizations.dart';
 import 'package:go_router/go_router.dart';
@@ -344,12 +345,43 @@ class _HomeScreenState extends State<HomeScreen> {
                       ),
                     ),
 
+                    const SizedBox(height: 4),
+
+                    // ── App bewerten ───────────────────────────────────────
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade50,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: Colors.grey.shade200),
+                      ),
+                      child: ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.star_outline,
+                            color: AppColors.orange, size: 20),
+                        title: const Text('App bewerten',
+                            style: TextStyle(fontSize: 14)),
+                        trailing: const Icon(Icons.chevron_right,
+                            color: AppColors.grey, size: 18),
+                        onTap: () async {
+                          Navigator.pop(sheetCtx);
+                          final inAppReview = InAppReview.instance;
+                          if (await inAppReview.isAvailable()) {
+                            await inAppReview.requestReview();
+                          } else {
+                            await inAppReview.openStoreListing(
+                              appStoreId: '6746418966',
+                            );
+                          }
+                        },
+                      ),
+                    ),
+
                     // ── Version ────────────────────────────────────────────
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 14),
                       child: Center(
                         child: Text(
-                          '${l10n.version} 1.0.4',
+                          '${l10n.version} 2.0.0',
                           style: TextStyle(
                               color: Colors.grey.shade400, fontSize: 12),
                         ),

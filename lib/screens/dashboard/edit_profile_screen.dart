@@ -432,56 +432,6 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
             ]),
             const SizedBox(height: 20),
 
-            // Weitere Standorte (nur wenn standorte > 1)
-            if (widget.partner.standorte > 1) ...[
-              _section('Weitere Standorte'),
-              if (_childLoading)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Center(child: CircularProgressIndicator()),
-                )
-              else
-                ..._weitereStandorte.asMap().entries.map((entry) {
-                  final i = entry.key;
-                  final s = entry.value;
-                  return Container(
-                    margin: const EdgeInsets.only(bottom: 12),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: AppColors.navy.withOpacity(0.04),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: AppColors.navy.withOpacity(0.15)),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Text('Standort ${i + 2}',
-                              style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.navy)),
-                        ),
-                        _field(s['adresse']!, 'Adresse', Icons.location_on_outlined),
-                        Row(children: [
-                          SizedBox(
-                            width: 110,
-                            child: _field(s['plz']!, 'PLZ', Icons.markunread_mailbox_outlined),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(child: _field(s['ort']!, 'Ort', Icons.location_city_outlined)),
-                        ]),
-                        _field(s['telefon']!, 'Telefon (optional)', Icons.phone_outlined),
-                        _field(s['email']!, 'E-Mail (optional)', Icons.email_outlined),
-                        _field(s['oeffnungszeiten']!, 'Öffnungszeiten (optional)', Icons.access_time_outlined, maxLines: 2),
-                        _field(s['leistungen']!, 'Leistungsbeschreibung (optional)', Icons.description_outlined, maxLines: 4),
-                      ],
-                    ),
-                  );
-                }),
-              const SizedBox(height: 20),
-            ],
-
             // Kontakt
             _section('Kontakt'),
             _field(_telefon, 'Telefon', Icons.phone_outlined),
@@ -604,6 +554,56 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
               _field(_ersatzwagenHinweis, 'Hinweis zum Ersatzwagen...',
                   Icons.directions_car_outlined,
                   maxLines: 3, maxLength: 150),
+              const SizedBox(height: 20),
+            ],
+
+            // Weitere Standorte (nur wenn standorte > 1)
+            if (widget.partner.standorte > 1) ...[
+              _section('Weitere Standorte'),
+              if (_childLoading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 12),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else
+                ..._weitereStandorte.asMap().entries.map((entry) {
+                  final i = entry.key;
+                  final s = entry.value;
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 12),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: AppColors.navy.withOpacity(0.04),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.navy.withOpacity(0.15)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text('Standort ${i + 2}',
+                              style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.navy)),
+                        ),
+                        _field(s['adresse']!, 'Adresse', Icons.location_on_outlined),
+                        Row(children: [
+                          SizedBox(
+                            width: 110,
+                            child: _field(s['plz']!, 'PLZ', Icons.markunread_mailbox_outlined),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(child: _field(s['ort']!, 'Ort', Icons.location_city_outlined)),
+                        ]),
+                        _field(s['telefon']!, 'Telefon (optional)', Icons.phone_outlined),
+                        _field(s['email']!, 'E-Mail (optional)', Icons.email_outlined),
+                        _field(s['oeffnungszeiten']!, 'Öffnungszeiten (optional)', Icons.access_time_outlined, maxLines: 2),
+                        _field(s['leistungen']!, 'Leistungsbeschreibung (optional)', Icons.description_outlined, maxLines: 4),
+                      ],
+                    ),
+                  );
+                }),
               const SizedBox(height: 20),
             ],
             const SizedBox(height: 12),
