@@ -50,7 +50,7 @@ class _VerkehrScreenState extends State<VerkehrScreen> {
         final data = jsonDecode(utf8.decode(resp.bodyBytes));
         final list = (data['incidents'] as List? ?? [])
             .map((e) => _Incident.fromJson(e, pos.latitude, pos.longitude))
-            .where((i) => i.magnitudeOfDelay > 0)
+            .where((i) => i.description.isNotEmpty)
             .toList()
           ..sort((a, b) => b.magnitudeOfDelay.compareTo(a.magnitudeOfDelay));
         if (mounted) setState(() { _incidents = list; _loading = false; });
@@ -299,11 +299,12 @@ class _Incident {
 
   String get severityLabel {
     switch (magnitudeOfDelay) {
-      case 1: return 'Leicht';
-      case 2: return 'Mittel';
-      case 3: return 'Schwer';
-      case 4: return 'Sehr schwer';
-      default: return 'Unbekannt';
+      case 0: return 'Dichter Verkehr';
+      case 1: return 'Leichte Verzögerung';
+      case 2: return 'Mittlere Verzögerung';
+      case 3: return 'Starke Verzögerung';
+      case 4: return 'Sehr starke Verzögerung';
+      default: return 'Verkehrsmeldung';
     }
   }
 
