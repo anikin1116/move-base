@@ -31,9 +31,13 @@ workflows:
         script: cd ios && pod install
       - name: Build iOS
         script: |
-          BUILD_NUMBER=$(grep "^version:" pubspec.yaml | sed 's/.*+//')
+          BUILD_NUMBER=$(python3 -c "import re; print(re.search(r'version:\s*[\d.]+\+(\d+)', open('pubspec.yaml').read()).group(1))")
+          BUILD_NAME=$(python3 -c "import re; print(re.search(r'version:\s*([\d.]+)\+', open('pubspec.yaml').read()).group(1))")
+          echo "Building $BUILD_NAME+$BUILD_NUMBER"
+          cd ios && agvtool new-version -all $BUILD_NUMBER && cd ..
           flutter build ipa \
             --release \
+            --build-name=$BUILD_NAME \
             --build-number=$BUILD_NUMBER \
             --export-options-plist=/Users/builder/export_options.plist
     artifacts:
