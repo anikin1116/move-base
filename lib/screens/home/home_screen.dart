@@ -369,7 +369,7 @@ class _HomeScreenState extends State<HomeScreen> {
                             await inAppReview.requestReview();
                           } else {
                             await inAppReview.openStoreListing(
-                              appStoreId: '6746418966',
+                              appStoreId: '6796435104',
                             );
                           }
                         },
