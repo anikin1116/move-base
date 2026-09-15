@@ -31,8 +31,10 @@ workflows:
         script: cd ios && pod install
       - name: Build iOS
         script: |
+          BUILD_NUMBER=$(grep "^version:" pubspec.yaml | sed 's/.*+//')
           flutter build ipa \
             --release \
+            --build-number=$BUILD_NUMBER \
             --export-options-plist=/Users/builder/export_options.plist
     artifacts:
       - build/ios/ipa/*.ipa
@@ -57,8 +59,10 @@ workflows:
         script: flutter pub get
       - name: Build Android
         script: |
+          BUILD_NUMBER=$(grep "^version:" pubspec.yaml | sed 's/.*+//')
           flutter build appbundle \
-            --release
+            --release \
+            --build-number=$BUILD_NUMBER
     artifacts:
       - build/app/outputs/bundle/release/*.aab
     publishing:
