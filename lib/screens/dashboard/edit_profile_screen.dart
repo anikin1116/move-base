@@ -36,6 +36,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
 
   late List<String> _selectedZusatz;
   late List<Map<String, TextEditingController>> _weitereStandorte;
+  late List<List<String>> _standortKategorien;
+  late List<Map<String, TextEditingController>> _standortZusatzTelefon;
+  late List<Map<String, TextEditingController>> _standortZusatzInfo;
   bool _childLoading = true;
   String? _logoUrl;
   File? _pickedLogo;
@@ -63,6 +66,9 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     _logoUrl = p.logo.isEmpty ? null : p.logo;
     _photoUrls = List<String>.from(p.photos);
     _weitereStandorte = [];
+    _standortKategorien = [];
+    _standortZusatzTelefon = [];
+    _standortZusatzInfo = [];
     WidgetsBinding.instance.addPostFrameCallback((_) => _loadChildLocations());
 
     // Init per-category controllers for already-selected zusatz categories
@@ -93,6 +99,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
         'oeffnungszeiten': TextEditingController(text: d['oeffnungszeiten'] ?? ''),
         'leistungen': TextEditingController(text: d['leistungen'] ?? ''),
       });
+      final kat = d['kategorien'] != null
+          ? List<String>.from(d['kategorien'] as List)
+          : List<String>.from(_selectedZusatz);
+      _standortKategorien.add(kat);
+      final zusatzTelRaw = Map<String, dynamic>.from(d['zusatzTelefon'] as Map? ?? {});
+      final zusatzInfoRaw = Map<String, dynamic>.from(d['zusatzInfo'] as Map? ?? {});
+      final telCtrl = <String, TextEditingController>{};
+      final infCtrl = <String, TextEditingController>{};
+      for (final k in kat) {
+        telCtrl[k] = TextEditingController(text: zusatzTelRaw[k]?.toString() ?? '');
+        infCtrl[k] = TextEditingController(text: zusatzInfoRaw[k]?.toString() ?? '');
+      }
+      _standortZusatzTelefon.add(telCtrl);
+      _standortZusatzInfo.add(infCtrl);
     }
     if (mounted) setState(() { _weitereStandorte = loaded; _childLoading = false; });
   }
@@ -115,6 +135,8 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
     for (final c in _zusatzTelefon.values) c.dispose();
     for (final c in _zusatzInfo.values) c.dispose();
     for (final s in _weitereStandorte) _disposeChildControllers(s);
+    for (final m in _standortZusatzTelefon) { for (final c in m.values) c.dispose(); }
+    for (final m in _standortZusatzInfo) { for (final c in m.values) c.dispose(); }
     super.dispose();
   }
 
@@ -241,11 +263,20 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
       for (int i = 0; i < _weitereStandorte.length; i++) {
         final s = _weitereStandorte[i];
         if (s['adresse']!.text.trim().isEmpty) continue;
+        final sKat = i < _standortKategorien.length ? _standortKategorien[i] : _selectedZusatz;
+        final sTel = i < _standortZusatzTelefon.length ? _standortZusatzTelefon[i] : <String, TextEditingController>{};
+        final sInf = i < _standortZusatzInfo.length ? _standortZusatzInfo[i] : <String, TextEditingController>{};
         await col.doc('${uid}_s${i + 2}').set({
           'parentUid': uid,
           'name': _name.text.trim(),
           'kategorie': widget.partner.kategorie,
-          'kategorien': _selectedZusatz,
+          'kategorien': sKat,
+          'zusatzTelefon': Map.fromEntries(
+            sTel.entries.where((e) => e.value.text.trim().isNotEmpty).map((e) => MapEntry(e.key, e.value.text.trim())),
+          ),
+          'zusatzInfo': Map.fromEntries(
+            sInf.entries.where((e) => e.value.text.trim().isNotEmpty).map((e) => MapEntry(e.key, e.value.text.trim())),
+          ),
           'paket': widget.partner.paket,
           'aktiv': widget.partner.aktiv,
           'adresse': s['adresse']!.text.trim(),
@@ -600,6 +631,89 @@ class _EditProfileScreenState extends State<EditProfileScreen> {
                         _field(s['email']!, 'E-Mail (optional)', Icons.email_outlined),
                         _field(s['oeffnungszeiten']!, 'Öffnungszeiten (optional)', Icons.access_time_outlined, maxLines: 2),
                         _field(s['leistungen']!, 'Leistungsbeschreibung (optional)', Icons.description_outlined, maxLines: 4),
+                        if (zusatzOptionen.isNotEmpty) ...[
+                          const Padding(
+                            padding: EdgeInsets.only(top: 4, bottom: 4),
+                            child: Text('Zusatzleistungen', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.navy)),
+                          ),
+                          ...zusatzOptionen.map((kat) {
+                            final sKat = i < _standortKategorien.length ? _standortKategorien[i] : <String>[];
+                            final sTel = i < _standortZusatzTelefon.length ? _standortZusatzTelefon[i] : <String, TextEditingController>{};
+                            final sInf = i < _standortZusatzInfo.length ? _standortZusatzInfo[i] : <String, TextEditingController>{};
+                            final isSelected = sKat.contains(kat);
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                CheckboxListTile(
+                                  title: Text(kat, style: const TextStyle(fontSize: 14)),
+                                  value: isSelected,
+                                  activeColor: AppColors.navy,
+                                  contentPadding: EdgeInsets.zero,
+                                  controlAffinity: ListTileControlAffinity.leading,
+                                  onChanged: (val) {
+                                    if (i >= _standortKategorien.length) return;
+                                    setState(() {
+                                      if (val == true) {
+                                        _standortKategorien[i].add(kat);
+                                        sTel[kat] = TextEditingController();
+                                        sInf[kat] = TextEditingController();
+                                      } else {
+                                        _standortKategorien[i].remove(kat);
+                                        sTel[kat]?.dispose();
+                                        sTel.remove(kat);
+                                        sInf[kat]?.dispose();
+                                        sInf.remove(kat);
+                                      }
+                                    });
+                                  },
+                                ),
+                                if (isSelected) ...[
+                                  Container(
+                                    margin: const EdgeInsets.only(left: 8, bottom: 8),
+                                    padding: const EdgeInsets.all(10),
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(color: AppColors.navy.withOpacity(0.15)),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        TextField(
+                                          controller: sTel[kat],
+                                          keyboardType: TextInputType.phone,
+                                          decoration: InputDecoration(
+                                            hintText: 'Separate Notfallnummer (optional)',
+                                            hintStyle: const TextStyle(fontSize: 13),
+                                            prefixIcon: const Icon(Icons.phone_outlined, size: 18, color: AppColors.grey),
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                            filled: true,
+                                            fillColor: Colors.white,
+                                            isDense: true,
+                                            contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        TextField(
+                                          controller: sInf[kat],
+                                          decoration: InputDecoration(
+                                            hintText: 'Info-Text (optional – z.B. Erreichbarkeit)',
+                                            hintStyle: const TextStyle(fontSize: 13),
+                                            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                                            filled: true,
+                                            fillColor: Colors.white,
+                                            isDense: true,
+                                            contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            );
+                          }),
+                        ],
                       ],
                     ),
                   );
