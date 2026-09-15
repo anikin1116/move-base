@@ -50,9 +50,13 @@ class _VerkehrScreenState extends State<VerkehrScreen> {
         final data = jsonDecode(utf8.decode(resp.bodyBytes));
         final list = (data['incidents'] as List? ?? [])
             .map((e) => _Incident.fromJson(e, pos.latitude, pos.longitude))
-            .where((i) => i.description.isNotEmpty)
+            .where((i) => i.distanceKm <= _radiusKm && (i.magnitudeOfDelay > 0 || i.eventCode > 0))
             .toList()
-          ..sort((a, b) => b.magnitudeOfDelay.compareTo(a.magnitudeOfDelay));
+          ..sort((a, b) {
+            final bySev = b.magnitudeOfDelay.compareTo(a.magnitudeOfDelay);
+            if (bySev != 0) return bySev;
+            return a.distanceKm.compareTo(b.distanceKm);
+          });
         if (mounted) setState(() { _incidents = list; _loading = false; });
       } else if (resp.statusCode == 403) {
         if (mounted) setState(() { _error = 'API-Kontingent erschöpft. Morgen wieder verfügbar.'; _loading = false; });
