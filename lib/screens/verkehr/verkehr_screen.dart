@@ -19,6 +19,8 @@ class _VerkehrScreenState extends State<VerkehrScreen> {
   static const _radiusKm = 40.0;
 
   List<_Incident>? _incidents;
+  List<_Incident>? _filtered;
+  final Set<int> _activeFilters = {};
   bool _loading = false;
   String? _error;
 
@@ -40,24 +42,25 @@ class _VerkehrScreenState extends State<VerkehrScreen> {
         '?key=$_apiKey'
         '&bbox=${bbox[0]},${bbox[1]},${bbox[2]},${bbox[3]}'
         '&language=de-DE'
-        '&timeValidityFilter=present',
+        '&timeValidityFilter=present'
+        '&fields={incidents{geometry{type,coordinates},properties{iconCategory,magnitudeOfDelay,from,to,roadNumbers,delay,events{description,iconCategory}}}}',
       );
       final resp = await http
-          .get(url, headers: {'User-Agent': 'MoveBase-App/1.0.5'})
+          .get(url, headers: {'User-Agent': 'MoveBase-App/2.0.0'})
           .timeout(const Duration(seconds: 15));
 
       if (resp.statusCode == 200) {
         final data = jsonDecode(utf8.decode(resp.bodyBytes));
         final list = (data['incidents'] as List? ?? [])
             .map((e) => _Incident.fromJson(e, pos.latitude, pos.longitude))
-            .where((i) => i.distanceKm <= _radiusKm && (i.magnitudeOfDelay > 0 || i.eventCode > 0))
+            .where((i) => i.distanceKm <= _radiusKm && i.eventCode > 0)
             .toList()
           ..sort((a, b) {
-            final bySev = b.magnitudeOfDelay.compareTo(a.magnitudeOfDelay);
-            if (bySev != 0) return bySev;
+            final byPrio = b.priority.compareTo(a.priority);
+            if (byPrio != 0) return byPrio;
             return a.distanceKm.compareTo(b.distanceKm);
           });
-        if (mounted) setState(() { _incidents = list; _loading = false; });
+        if (mounted) setState(() { _incidents = list; _filtered = list; _loading = false; });
       } else if (resp.statusCode == 403) {
         if (mounted) setState(() { _error = 'API-Kontingent erschöpft. Morgen wieder verfügbar.'; _loading = false; });
       } else {
@@ -81,6 +84,19 @@ class _VerkehrScreenState extends State<VerkehrScreen> {
     if (last != null) return last;
     return Geolocator.getCurrentPosition(
         locationSettings: const LocationSettings(accuracy: LocationAccuracy.low));
+  }
+
+  void _toggleFilter(int code) {
+    setState(() {
+      if (_activeFilters.contains(code)) {
+        _activeFilters.remove(code);
+      } else {
+        _activeFilters.add(code);
+      }
+      _filtered = _activeFilters.isEmpty
+          ? _incidents
+          : _incidents?.where((i) => _activeFilters.contains(i.eventCode)).toList();
+    });
   }
 
   List<double> _bbox(double lat, double lon, double radiusKm) {
@@ -160,13 +176,44 @@ class _VerkehrScreenState extends State<VerkehrScreen> {
         ),
       );
     }
-    return RefreshIndicator(
-      onRefresh: _load,
-      child: ListView.builder(
-        padding: const EdgeInsets.all(12),
-        itemCount: _incidents!.length,
-        itemBuilder: (context, i) => _IncidentCard(incident: _incidents![i]),
-      ),
+    final categories = _incidents!.map((i) => i.eventCode).toSet().toList()..sort();
+    final display = _filtered ?? _incidents!;
+    return Column(
+      children: [
+        SizedBox(
+          height: 48,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            children: categories.map((code) {
+              final active = _activeFilters.contains(code);
+              return Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: FilterChip(
+                  label: Text(_Incident.categoryLabel(code), style: const TextStyle(fontSize: 12)),
+                  selected: active,
+                  onSelected: (_) => _toggleFilter(code),
+                  selectedColor: AppColors.navy.withValues(alpha: 0.15),
+                  checkmarkColor: AppColors.navy,
+                  side: BorderSide(color: active ? AppColors.navy : Colors.grey.shade300),
+                ),
+              );
+            }).toList(),
+          ),
+        ),
+        Expanded(
+          child: RefreshIndicator(
+            onRefresh: _load,
+            child: display.isEmpty
+                ? const Center(child: Text('Keine Einträge für diesen Filter.'))
+                : ListView.builder(
+                    padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                    itemCount: display.length,
+                    itemBuilder: (context, i) => _IncidentCard(incident: display[i]),
+                  ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -234,8 +281,9 @@ class _IncidentCard extends StatelessWidget {
                         if (incident.distanceKm > 0)
                           _Chip('${incident.distanceKm} km', Colors.blue.shade50,
                               Colors.blue.shade700),
-                        _Chip(incident.severityLabel,
-                            incident.color.withValues(alpha: 0.15), incident.color),
+                        if (incident.severityLabel.isNotEmpty)
+                          _Chip(incident.severityLabel,
+                              incident.color.withValues(alpha: 0.15), incident.color),
                       ],
                     ),
                   ],
@@ -291,24 +339,59 @@ class _Incident {
     required this.eventCode,
   });
 
+  int get priority {
+    switch (eventCode) {
+      case 1: return 5;
+      case 8: return 4;
+      case 7: return 3;
+      case 6: return 2;
+      case 9: return 1;
+      default: return 0;
+    }
+  }
+
   Color get color {
     switch (magnitudeOfDelay) {
       case 1: return Colors.green.shade600;
       case 2: return Colors.orange;
       case 3: return Colors.red;
       case 4: return Colors.red.shade900;
-      default: return Colors.grey;
+      default:
+        switch (eventCode) {
+          case 1: return Colors.red;
+          case 8: return Colors.red.shade900;
+          case 7: return Colors.orange;
+          case 6: return Colors.orange;
+          default: return Colors.amber.shade700;
+        }
     }
   }
 
   String get severityLabel {
     switch (magnitudeOfDelay) {
-      case 0: return 'Dichter Verkehr';
       case 1: return 'Leichte Verzögerung';
       case 2: return 'Mittlere Verzögerung';
       case 3: return 'Starke Verzögerung';
       case 4: return 'Sehr starke Verzögerung';
-      default: return 'Verkehrsmeldung';
+      default: return '';
+    }
+  }
+
+  static String categoryLabel(int code) {
+    switch (code) {
+      case 1: return 'Unfall';
+      case 2: return 'Nebel';
+      case 3: return 'Gefährlich';
+      case 4: return 'Regen';
+      case 5: return 'Glatteis';
+      case 6: return 'Stau';
+      case 7: return 'Fahrsperre';
+      case 8: return 'Gesperrt';
+      case 9: return 'Baustelle';
+      case 10: return 'Sturm';
+      case 11: return 'Überschwemmung';
+      case 14: return 'Panne';
+      default: return 'Sonstiges';
     }
   }
 
@@ -359,29 +442,33 @@ class _Incident {
       distKm = _haversineKm(userLat, userLon, incLat, incLon);
     }
 
+    final eventCode = (props['iconCategory'] as num?)?.toInt() ?? 0;
+    final magnitudeOfDelay = (props['magnitudeOfDelay'] as num?)?.toInt() ?? 0;
     final delaySeconds = (props['delay'] as num?)?.toInt() ?? 0;
     final delayMin = (delaySeconds / 60).round();
 
-    final from = (props['from'] as String?) ?? '';
-    final to = (props['to'] as String?) ?? '';
-    final road = from.isNotEmpty && to.isNotEmpty
-        ? '$from → $to'
-        : (from.isNotEmpty ? from : to);
-
     final events = props['events'] as List? ?? [];
     String desc = '';
-    int eventCode = 0;
     if (events.isNotEmpty) {
-      final e = events[0] as Map<String, dynamic>;
-      desc = (e['description'] as String?) ?? '';
-      eventCode = (e['iconCategory'] as num?)?.toInt() ?? 0;
+      desc = (events[0] as Map<String, dynamic>)['description'] as String? ?? '';
     }
     if (desc.isEmpty) desc = _fallbackLabel(eventCode);
+
+    final from = (props['from'] as String?) ?? '';
+    final to = (props['to'] as String?) ?? '';
+    final roadNums = (props['roadNumbers'] as List? ?? []).map((e) => e.toString()).toList();
+    String road = '';
+    if (roadNums.isNotEmpty) road = roadNums.first;
+    if (from.isNotEmpty && to.isNotEmpty) {
+      road = road.isNotEmpty ? '$road: $from → $to' : '$from → $to';
+    } else if (from.isNotEmpty) {
+      road = road.isNotEmpty ? '$road: $from' : from;
+    }
 
     return _Incident(
       description: desc,
       road: road,
-      magnitudeOfDelay: (props['magnitudeOfDelay'] as num?)?.toInt() ?? 0,
+      magnitudeOfDelay: magnitudeOfDelay,
       delayMin: delayMin,
       distanceKm: double.parse(distKm.toStringAsFixed(1)),
       lat: incLat,
