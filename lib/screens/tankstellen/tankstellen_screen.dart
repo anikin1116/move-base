@@ -4,8 +4,12 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:in_app_review/in_app_review.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../generated/l10n/app_localizations.dart';
@@ -50,6 +54,21 @@ class _TankstellenScreenState extends State<TankstellenScreen>
         if (!_tabCtrl.indexIsChanging) setState(() {});
       });
     _init();
+    _maybeReview('mb_ts_opens');
+  }
+
+  Future<void> _maybeReview(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final count = (prefs.getInt(key) ?? 0) + 1;
+      await prefs.setInt(key, count);
+      if (count % 5 == 0) {
+        final review = InAppReview.instance;
+        if (await review.isAvailable()) {
+          await review.requestReview();
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -262,6 +281,38 @@ class _TankstellenScreenState extends State<TankstellenScreen>
               fontSize: 18),
         ),
         actions: [
+          if (_lat != null)
+            IconButton(
+              icon: const Icon(Icons.map_outlined, color: AppColors.navy),
+              onPressed: () {
+                final allPoints = <_TsMapPoint>[];
+                for (int i = 0; i < _fuelTypes.length; i++) {
+                  for (final s in (_cache[_fuelTypes[i]] ?? [])) {
+                    allPoints.add(_TsMapPoint(
+                      name: s.name, subtitle: s.address,
+                      lat: s.lat, lng: s.lng,
+                      distance: s.distance, price: s.price,
+                      isEv: false, fuelType: _fuelTypes[i],
+                    ));
+                  }
+                }
+                for (final s in (_evStations ?? [])) {
+                  allPoints.add(_TsMapPoint(
+                    name: s.name, subtitle: s.socketTypes.join(', '),
+                    lat: s.lat, lng: s.lng,
+                    distance: s.distance, price: null,
+                    isEv: true, fuelType: 'ev',
+                  ));
+                }
+                if (allPoints.isEmpty) return;
+                Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => _TsMapScreen(
+                    points: allPoints,
+                    userLat: _lat!, userLng: _lng!,
+                  ),
+                ));
+              },
+            ),
           IconButton(
             icon: const Icon(Icons.refresh, color: AppColors.navy),
             onPressed: () {
@@ -925,6 +976,200 @@ class _EvStationCard extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ─── Map Point & Map Screen ───────────────────────────────────────────────────
+
+class _TsMapPoint {
+  final String name, subtitle, fuelType;
+  final double lat, lng, distance;
+  final double? price;
+  final bool isEv;
+  const _TsMapPoint({
+    required this.name, required this.subtitle, required this.fuelType,
+    required this.lat, required this.lng, required this.distance,
+    this.price, required this.isEv,
+  });
+}
+
+class _TsMapScreen extends StatefulWidget {
+  final List<_TsMapPoint> points;
+  final double userLat, userLng;
+  const _TsMapScreen({required this.points, required this.userLat, required this.userLng});
+
+  @override
+  State<_TsMapScreen> createState() => _TsMapScreenState();
+}
+
+class _TsMapScreenState extends State<_TsMapScreen> {
+  _TsMapPoint? _selected;
+  final Set<String> _filters = {};
+
+  static const _filterDefs = [
+    ('SUP', '⛽ Super 95', Color(0xFFE8A020)),
+    ('DIE', '⛽ Diesel',   Color(0xFF8B4513)),
+    ('GAS', '⛽ Gas',      Color(0xFF1565C0)),
+    ('ev',  '⚡ Laden',    Color(0xFF2E7D32)),
+  ];
+
+  List<_TsMapPoint> get _visible => _filters.isEmpty
+      ? widget.points
+      : widget.points.where((p) => _filters.contains(p.fuelType)).toList();
+
+  Color _markerColor(_TsMapPoint p) {
+    switch (p.fuelType) {
+      case 'DIE': return const Color(0xFF8B4513);
+      case 'GAS': return const Color(0xFF1565C0);
+      case 'ev':  return const Color(0xFF2E7D32);
+      default:    return const Color(0xFFE8A020);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = _visible;
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        title: const Text('Tankstellen & Laden',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+      body: Stack(
+        children: [
+          FlutterMap(
+            options: MapOptions(
+              initialCenter: LatLng(widget.userLat, widget.userLng),
+              initialZoom: 12,
+              onTap: (_, __) => setState(() => _selected = null),
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'eu.movebase.app',
+              ),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: LatLng(widget.userLat, widget.userLng),
+                    width: 20, height: 20,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                      ),
+                    ),
+                  ),
+                  ...visible.map((p) => Marker(
+                    point: LatLng(p.lat, p.lng),
+                    width: 36, height: 36,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selected = p),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: _markerColor(p),
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                          boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                        ),
+                        child: Center(
+                          child: Text(p.isEv ? '⚡' : '⛽',
+                              style: const TextStyle(fontSize: 16)),
+                        ),
+                      ),
+                    ),
+                  )),
+                ],
+              ),
+            ],
+          ),
+          // Filter chips
+          Positioned(
+            top: 8, left: 8, right: 8,
+            child: Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              elevation: 3,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: _filterDefs.map((def) {
+                      final (key, label, color) = def;
+                      final active = _filters.contains(key);
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: FilterChip(
+                          label: Text(label,
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: active ? Colors.white : Colors.black87)),
+                          selected: active,
+                          selectedColor: color,
+                          checkmarkColor: Colors.white,
+                          backgroundColor: Colors.grey.shade100,
+                          onSelected: (_) => setState(() {
+                            if (active) _filters.remove(key);
+                            else _filters.add(key);
+                            _selected = null;
+                          }),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (_selected != null)
+            Positioned(
+              left: 12, right: 12, bottom: 24,
+              child: Card(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 6,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(children: [
+                        Text(_selected!.isEv ? '⚡' : '⛽',
+                            style: const TextStyle(fontSize: 24)),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(_selected!.name,
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold, fontSize: 15))),
+                        GestureDetector(
+                          onTap: () => setState(() => _selected = null),
+                          child: const Icon(Icons.close, size: 20, color: Colors.grey),
+                        ),
+                      ]),
+                      const SizedBox(height: 4),
+                      Text(_selected!.subtitle,
+                          style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                      if (_selected!.price != null) ...[
+                        const SizedBox(height: 6),
+                        Text('€ ${_selected!.price!.toStringAsFixed(3)}',
+                            style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 18,
+                                color: Color(0xFF022851))),
+                      ],
+                      const SizedBox(height: 6),
+                      Text('${_selected!.distance.toStringAsFixed(1)} km entfernt',
+                          style: TextStyle(fontSize: 12, color: Colors.grey[500])),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

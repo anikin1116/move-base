@@ -2,8 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
+import 'package:in_app_review/in_app_review.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../theme/app_theme.dart';
 
@@ -23,11 +27,27 @@ class _VerkehrScreenState extends State<VerkehrScreen> {
   final Set<int> _activeFilters = {};
   bool _loading = false;
   String? _error;
+  double? _userLat, _userLon;
 
   @override
   void initState() {
     super.initState();
     _load();
+    _maybeReview('mb_vk_opens');
+  }
+
+  Future<void> _maybeReview(String key) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final count = (prefs.getInt(key) ?? 0) + 1;
+      await prefs.setInt(key, count);
+      if (count % 5 == 0) {
+        final review = InAppReview.instance;
+        if (await review.isAvailable()) {
+          await review.requestReview();
+        }
+      }
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -36,6 +56,7 @@ class _VerkehrScreenState extends State<VerkehrScreen> {
 
     try {
       final pos = await _getPosition();
+      if (mounted) setState(() { _userLat = pos.latitude; _userLon = pos.longitude; });
       final bbox = _bbox(pos.latitude, pos.longitude, _radiusKm);
       final url = Uri.parse(
         'https://api.tomtom.com/traffic/services/5/incidentDetails'
@@ -118,6 +139,17 @@ class _VerkehrScreenState extends State<VerkehrScreen> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
+          if (!_loading && _incidents != null && _incidents!.isNotEmpty && _userLat != null)
+            IconButton(
+              icon: const Icon(Icons.map_outlined, color: Colors.white),
+              onPressed: () => Navigator.push(context, MaterialPageRoute(
+                builder: (_) => _VerkehrMapScreen(
+                  incidents: _incidents!,
+                  userLat: _userLat!,
+                  userLon: _userLon!,
+                ),
+              )),
+            ),
           if (!_loading)
             IconButton(
               icon: const Icon(Icons.refresh, color: Colors.white),
@@ -496,7 +528,7 @@ class _Incident {
       case 5: return 'Glatteis';
       case 6: return 'Stau';
       case 7: return 'Fahrsperre';
-      case 8: return 'Straße gesperrt';
+      case 8: return 'Straße gesperrt';  // keep existing
       case 9: return 'Baustelle';
       case 10: return 'Sturm';
       case 11: return 'Überschwemmung';
@@ -504,5 +536,175 @@ class _Incident {
       case 14: return 'Liegengebliebenes Fahrzeug';
       default: return 'Verkehrsstörung';
     }
+  }
+}
+
+// ─── Verkehr Map Screen ───────────────────────────────────────────────────────
+
+class _VerkehrMapScreen extends StatefulWidget {
+  final List<_Incident> incidents;
+  final double userLat, userLon;
+  const _VerkehrMapScreen({required this.incidents, required this.userLat, required this.userLon});
+
+  @override
+  State<_VerkehrMapScreen> createState() => _VerkehrMapScreenState();
+}
+
+class _VerkehrMapScreenState extends State<_VerkehrMapScreen> {
+  _Incident? _selected;
+  final Set<int> _filters = {};
+
+  List<_Incident> get _visible => _filters.isEmpty
+      ? widget.incidents.where((i) => i.lat != null).toList()
+      : widget.incidents.where((i) => i.lat != null && _filters.contains(i.eventCode)).toList();
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = _visible;
+    final allCodes = widget.incidents.map((i) => i.eventCode).toSet().toList()..sort();
+    final center = visible.isNotEmpty
+        ? LatLng(
+            visible.map((i) => i.lat!).reduce((a, b) => a + b) / visible.length,
+            visible.map((i) => i.lon!).reduce((a, b) => a + b) / visible.length,
+          )
+        : LatLng(widget.userLat, widget.userLon);
+
+    return Scaffold(
+      appBar: AppBar(
+        backgroundColor: AppColors.navy,
+        foregroundColor: Colors.white,
+        title: const Text('Verkehrskarte',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+      ),
+      body: Stack(
+        children: [
+          FlutterMap(
+            options: MapOptions(
+              initialCenter: center,
+              initialZoom: 11,
+              onTap: (_, __) => setState(() => _selected = null),
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'eu.movebase.app',
+              ),
+              MarkerLayer(
+                markers: [
+                  Marker(
+                    point: LatLng(widget.userLat, widget.userLon),
+                    width: 20, height: 20,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.white, width: 2),
+                        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                      ),
+                    ),
+                  ),
+                  ...visible.map((i) => Marker(
+                    point: LatLng(i.lat!, i.lon!),
+                    width: 36, height: 36,
+                    child: GestureDetector(
+                      onTap: () => setState(() => _selected = i),
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: i.color,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: Colors.white, width: 2),
+                          boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                        ),
+                        child: Center(
+                          child: Text(i.icon, style: const TextStyle(fontSize: 16)),
+                        ),
+                      ),
+                    ),
+                  )),
+                ],
+              ),
+            ],
+          ),
+          // Filter chips
+          Positioned(
+            top: 8, left: 8, right: 8,
+            child: Card(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              elevation: 3,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: Row(
+                    children: allCodes.map((code) {
+                      final active = _filters.contains(code);
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 3),
+                        child: FilterChip(
+                          label: Text(_Incident.categoryLabel(code),
+                              style: TextStyle(
+                                  fontSize: 12,
+                                  color: active ? Colors.white : Colors.black87)),
+                          selected: active,
+                          selectedColor: AppColors.navy,
+                          checkmarkColor: Colors.white,
+                          backgroundColor: Colors.grey.shade100,
+                          onSelected: (_) => setState(() {
+                            if (active) _filters.remove(code);
+                            else _filters.add(code);
+                            _selected = null;
+                          }),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (_selected != null)
+            Positioned(
+              left: 12, right: 12, bottom: 24,
+              child: Card(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                elevation: 6,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Row(children: [
+                        Text(_selected!.icon, style: const TextStyle(fontSize: 24)),
+                        const SizedBox(width: 8),
+                        Expanded(child: Text(_selected!.description,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
+                        GestureDetector(
+                          onTap: () => setState(() => _selected = null),
+                          child: const Icon(Icons.close, size: 20, color: Colors.grey),
+                        ),
+                      ]),
+                      if (_selected!.road.isNotEmpty) ...[
+                        const SizedBox(height: 4),
+                        Text(_selected!.road,
+                            style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                      ],
+                      const SizedBox(height: 8),
+                      Wrap(spacing: 6, children: [
+                        if (_selected!.delayMin > 0)
+                          _Chip('+${_selected!.delayMin} Min',
+                              Colors.red.shade100, Colors.red.shade800),
+                        if (_selected!.severityLabel.isNotEmpty)
+                          _Chip(_selected!.severityLabel,
+                              _selected!.color.withValues(alpha: 0.15), _selected!.color),
+                      ]),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
