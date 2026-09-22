@@ -45,6 +45,9 @@ class _TankstellenScreenState extends State<TankstellenScreen>
   List<_EvStation>? _evStations;
   bool _evLoading = false;
   final Set<String> _evFilter = {};
+  String? _searchCityName;
+  bool _usingSearch = false;
+  String? _searchCountryCode;
 
   @override
   void initState() {
@@ -78,6 +81,9 @@ class _TankstellenScreenState extends State<TankstellenScreen>
   }
 
   Future<void> _init() async {
+    _usingSearch = false;
+    _searchCityName = null;
+    _searchCountryCode = null;
     setState(() {
       _loading = true;
       _error = null;
@@ -126,6 +132,7 @@ class _TankstellenScreenState extends State<TankstellenScreen>
   }
 
   Future<void> _refreshPosition() async {
+    if (_usingSearch) return;
     try {
       final pos = await Geolocator.getCurrentPosition(
           locationSettings:
@@ -144,6 +151,15 @@ class _TankstellenScreenState extends State<TankstellenScreen>
   Future<void> _loadFuel(String fuelType) async {
     if (_cache.containsKey(fuelType)) return;
     if (_loadingTypes.contains(fuelType)) return;
+    if (_usingSearch && _searchCountryCode != null && _searchCountryCode != 'at') {
+      // TankerKönig (DE) – aktivieren sobald API-Key vorhanden
+      // if (_searchCountryCode == 'de') {
+      //   await _loadFuelTankerKoenig(fuelType);
+      // } else {
+      await _loadFuelOverpass(fuelType);
+      // }
+      return;
+    }
     _loadingTypes.add(fuelType);
     try {
       final uri = Uri.parse(
@@ -161,6 +177,73 @@ class _TankstellenScreenState extends State<TankstellenScreen>
       }
     } catch (_) {}
     _loadingTypes.remove(fuelType);
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _loadFuelOverpass(String fuelType) async {
+    if (_cache.containsKey(fuelType)) return;
+    for (final ft in _fuelTypes) {
+      if (_cache.containsKey(ft)) { _cache[fuelType] = _cache[ft]!; if (mounted) setState(() {}); return; }
+    }
+    if (_loadingTypes.contains('_overpass')) return;
+    _loadingTypes.add('_overpass');
+    List<_Station>? stations;
+    try {
+      for (final host in _overpassHosts) {
+        try {
+          final encoded = Uri.encodeQueryComponent('[out:json];(node["amenity"="fuel"](around:15000,$_lat,$_lng);way["amenity"="fuel"](around:15000,$_lat,$_lng););out center;');
+          final r = await http.get(
+            Uri.parse('$host?data=$encoded'),
+            headers: {'Accept': 'application/json', 'User-Agent': 'MoveBase-App/1.0'},
+          ).timeout(const Duration(seconds: 10));
+          if (r.statusCode == 200) {
+            final data = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+            stations = (data['elements'] as List<dynamic>? ?? [])
+                .map((e) => _Station.fromOsm(e as Map<String, dynamic>, _lat!, _lng!))
+                .toList()..sort((a, b) => a.distance.compareTo(b.distance));
+            break;
+          }
+        } catch (_) {}
+      }
+    } catch (_) {}
+    final result = stations ?? <_Station>[];
+    for (final ft in _fuelTypes) { _cache[ft] = result; }
+    _loadingTypes.remove('_overpass');
+    if (mounted) setState(() {});
+  }
+
+  // TankerKönig API-Key (nur Deutschland) – echten Key eintragen:
+  // https://creativecommons.tankerkoenig.de
+  static const _tankerKoenigKey = '00000000-0000-0000-0000-000000000002'; // TODO: echten Key eintragen
+
+  Future<void> _loadFuelTankerKoenig(String fuelType) async {
+    if (_cache.containsKey(fuelType)) return;
+    if (_loadingTypes.contains('_tankerkoenig')) return;
+    _loadingTypes.add('_tankerkoenig');
+    try {
+      final uri = Uri.parse(
+        'https://creativecommons.tankerkoenig.de/json/list.php'
+        '?lat=$_lat&lng=$_lng&rad=15&sort=dist&type=all&apikey=$_tankerKoenigKey',
+      );
+      final resp = await http
+          .get(uri, headers: {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 10));
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
+        if (data['ok'] == true) {
+          final raw = (data['stations'] as List<dynamic>? ?? [])
+              .cast<Map<String, dynamic>>();
+          for (final ft in _fuelTypes) {
+            _cache[ft] = raw.map((j) => _Station.fromTankerKoenig(j, ft)).toList();
+          }
+        } else {
+          for (final ft in _fuelTypes) { _cache.putIfAbsent(ft, () => []); }
+        }
+      }
+    } catch (_) {
+      for (final ft in _fuelTypes) { _cache.putIfAbsent(ft, () => []); }
+    }
+    _loadingTypes.remove('_tankerkoenig');
     if (mounted) setState(() {});
   }
 
@@ -245,6 +328,199 @@ class _TankstellenScreenState extends State<TankstellenScreen>
     return null;
   }
 
+  List<_TsMapPoint> _buildAllPoints() {
+    final pts = <_TsMapPoint>[];
+    for (int i = 0; i < _fuelTypes.length; i++) {
+      for (final s in (_cache[_fuelTypes[i]] ?? [])) {
+        pts.add(_TsMapPoint(
+          name: s.name, subtitle: s.address,
+          lat: s.lat, lng: s.lng,
+          distance: s.distance, price: s.price,
+          isEv: false, fuelType: _fuelTypes[i],
+        ));
+      }
+    }
+    for (final s in (_evStations ?? [])) {
+      pts.add(_TsMapPoint(
+        name: s.name, subtitle: s.socketTypes.join(', '),
+        lat: s.lat, lng: s.lng,
+        distance: s.distance, price: null,
+        isEv: true, fuelType: 'ev',
+      ));
+    }
+    return pts;
+  }
+
+  Future<void> _selectCity(double lat, double lng, String name, {String countryCode = 'at'}) async {
+    _lat = lat;
+    _lng = lng;
+    _searchCityName = name;
+    _searchCountryCode = countryCode;
+    _usingSearch = true;
+    _cache.clear();
+    _evStations = null;
+    _evLoading = false;
+    if (mounted) setState(() { _loading = false; _error = null; });
+    await Future.wait([..._fuelTypes.map(_loadFuel), _loadEv()]);
+  }
+
+  Future<(List<_TsMapPoint>, double, double)> _selectCityForMap(double lat, double lng, String name, String countryCode) async {
+    await _selectCity(lat, lng, name, countryCode: countryCode);
+    return (_buildAllPoints(), _lat!, _lng!);
+  }
+
+  Future<(List<_TsMapPoint>, double, double)> _resetToGpsForMap() async {
+    _usingSearch = false;
+    _searchCityName = null;
+    _searchCountryCode = null;
+    _cache.clear();
+    _evStations = null;
+    if (mounted) setState(() { _loading = false; _error = null; });
+    try {
+      final pos = await Geolocator.getCurrentPosition(
+          locationSettings: const LocationSettings(accuracy: LocationAccuracy.low));
+      _lat = pos.latitude;
+      _lng = pos.longitude;
+    } catch (_) {}
+    await Future.wait([..._fuelTypes.map(_loadFuel), _loadEv()]);
+    return (_buildAllPoints(), _lat!, _lng!);
+  }
+
+  Future<List<_TsMapPoint>> _reloadForMap() async {
+    _cache.clear();
+    _evStations = null;
+    if (mounted) setState(() {});
+    await Future.wait([..._fuelTypes.map(_loadFuel), _loadEv()]);
+    return _buildAllPoints();
+  }
+
+  void _openCitySearch() {
+    final ctrl = TextEditingController();
+    final List<Map<String, dynamic>> suggestions = [];
+    bool searching = false;
+    Timer? debounce;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          Future<void> fetchSuggestions(String q) async {
+            if (q.length < 2) {
+              setModalState(() { suggestions.clear(); searching = false; });
+              return;
+            }
+            setModalState(() => searching = true);
+            try {
+              final url = Uri.parse(
+                'https://nominatim.openstreetmap.org/search'
+                '?q=${Uri.encodeComponent(q)}&format=json&limit=6&addressdetails=1',
+              );
+              final resp = await http.get(url, headers: {
+                'User-Agent': 'MoveBase/1.0 (contact@movebase.eu)',
+              }).timeout(const Duration(seconds: 5));
+              if (resp.statusCode == 200) {
+                final data = jsonDecode(resp.body) as List;
+                setModalState(() {
+                  suggestions..clear()..addAll(data.cast<Map<String, dynamic>>());
+                  searching = false;
+                });
+              } else {
+                setModalState(() => searching = false);
+              }
+            } catch (_) {
+              setModalState(() => searching = false);
+            }
+          }
+
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Ort suchen',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: ctrl,
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      hintText: 'Stadt, Ort oder PLZ…',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: searching
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(width: 16, height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2)),
+                            )
+                          : null,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    onChanged: (v) {
+                      debounce?.cancel();
+                      debounce = Timer(const Duration(milliseconds: 250),
+                          () => fetchSuggestions(v.trim()));
+                    },
+                  ),
+                  if (suggestions.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 260),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: suggestions.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, i) {
+                          final s = suggestions[i];
+                          final parts = (s['display_name'] as String).split(',');
+                          final title = parts.first.trim();
+                          final subtitle = parts.skip(1).take(2).map((e) => e.trim()).join(', ');
+                          return ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.location_on_outlined,
+                                size: 20, color: AppColors.navy),
+                            title: Text(title,
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                            subtitle: subtitle.isNotEmpty
+                                ? Text(subtitle, style: const TextStyle(fontSize: 11))
+                                : null,
+                            onTap: () {
+                              debounce?.cancel();
+                              Navigator.pop(ctx);
+                              final cc = ((s['address'] as Map<String, dynamic>?)?['country_code'] as String?) ?? 'at';
+                              _selectCity(
+                                double.parse(s['lat'] as String),
+                                double.parse(s['lon'] as String),
+                                title,
+                                countryCode: cc,
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () { debounce?.cancel(); Navigator.pop(ctx); },
+                      child: const Text('Abbrechen'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   List<_Station> _sorted(String fuelType) {
     final list = List<_Station>.from(_cache[fuelType] ?? []);
     if (_sortByPrice) {
@@ -281,36 +557,38 @@ class _TankstellenScreenState extends State<TankstellenScreen>
               fontSize: 18),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.search, color: AppColors.navy),
+            onPressed: _openCitySearch,
+          ),
+          if (_searchCityName != null)
+            IconButton(
+              icon: const Icon(Icons.gps_fixed, color: Color(0xFFE8A020)),
+              tooltip: 'Zurück zu meinem Standort',
+              onPressed: () {
+                _usingSearch = false;
+                _searchCityName = null;
+                _cache.clear();
+                _init();
+              },
+            ),
           if (_lat != null)
             IconButton(
               icon: const Icon(Icons.map_outlined, color: AppColors.navy),
-              onPressed: () {
-                final allPoints = <_TsMapPoint>[];
-                for (int i = 0; i < _fuelTypes.length; i++) {
-                  for (final s in (_cache[_fuelTypes[i]] ?? [])) {
-                    allPoints.add(_TsMapPoint(
-                      name: s.name, subtitle: s.address,
-                      lat: s.lat, lng: s.lng,
-                      distance: s.distance, price: s.price,
-                      isEv: false, fuelType: _fuelTypes[i],
-                    ));
-                  }
-                }
-                for (final s in (_evStations ?? [])) {
-                  allPoints.add(_TsMapPoint(
-                    name: s.name, subtitle: s.socketTypes.join(', '),
-                    lat: s.lat, lng: s.lng,
-                    distance: s.distance, price: null,
-                    isEv: true, fuelType: 'ev',
-                  ));
-                }
+              onPressed: () async {
+                final allPoints = _buildAllPoints();
                 if (allPoints.isEmpty) return;
-                Navigator.push(context, MaterialPageRoute(
+                await Navigator.push(context, MaterialPageRoute(
                   builder: (_) => _TsMapScreen(
                     points: allPoints,
                     userLat: _lat!, userLng: _lng!,
+                    initialSearchCityName: _searchCityName,
+                    onSearchCity: (lat, lng, name, countryCode) => _selectCityForMap(lat, lng, name, countryCode),
+                    onResetToGps: () => _resetToGpsForMap(),
+                    onReload: () => _reloadForMap(),
                   ),
                 ));
+                if (mounted) setState(() {});
               },
             ),
           IconButton(
@@ -352,6 +630,37 @@ class _TankstellenScreenState extends State<TankstellenScreen>
               ? _buildError()
               : Column(
                   children: [
+                    if (_searchCityName != null)
+                      Container(
+                        color: AppColors.navy,
+                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                        child: Row(children: [
+                          const Icon(Icons.location_city, color: Colors.white70, size: 16),
+                          const SizedBox(width: 8),
+                          Expanded(child: Text(_searchCityName!,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600))),
+                          GestureDetector(
+                            onTap: () {
+                              _usingSearch = false;
+                              _searchCityName = null;
+                              _cache.clear();
+                              _init();
+                            },
+                            child: const Icon(Icons.close, color: Colors.white70, size: 18),
+                          ),
+                        ]),
+                      ),
+                    if (_searchCityName != null && _searchCountryCode != null && _searchCountryCode != 'at')
+                      Container(
+                        color: const Color(0xFFFFF8E1),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        child: const Row(children: [
+                          Icon(Icons.info_outline, size: 13, color: Color(0xFFE65100)),
+                          SizedBox(width: 6),
+                          Text('Preise derzeit nur in Österreich verfügbar',
+                              style: TextStyle(fontSize: 11, color: Color(0xFFE65100))),
+                        ]),
+                      ),
                     if (_tabCtrl.index < 3) _buildSortBar(),
                     Expanded(
                       child: TabBarView(
@@ -998,7 +1307,19 @@ class _TsMapPoint {
 class _TsMapScreen extends StatefulWidget {
   final List<_TsMapPoint> points;
   final double userLat, userLng;
-  const _TsMapScreen({required this.points, required this.userLat, required this.userLng});
+  final Future<(List<_TsMapPoint>, double, double)> Function(double, double, String, String)? onSearchCity;
+  final Future<(List<_TsMapPoint>, double, double)> Function()? onResetToGps;
+  final Future<List<_TsMapPoint>> Function()? onReload;
+  final String? initialSearchCityName;
+  const _TsMapScreen({
+    required this.points,
+    required this.userLat,
+    required this.userLng,
+    this.onSearchCity,
+    this.onResetToGps,
+    this.onReload,
+    this.initialSearchCityName,
+  });
 
   @override
   State<_TsMapScreen> createState() => _TsMapScreenState();
@@ -1007,6 +1328,20 @@ class _TsMapScreen extends StatefulWidget {
 class _TsMapScreenState extends State<_TsMapScreen> {
   _TsMapPoint? _selected;
   final Set<String> _filters = {};
+  late List<_TsMapPoint> _points;
+  late double _centerLat, _centerLng;
+  String? _searchCityName;
+  bool _reloading = false;
+  final _mapCtrl = MapController();
+
+  @override
+  void initState() {
+    super.initState();
+    _points = widget.points;
+    _centerLat = widget.userLat;
+    _centerLng = widget.userLng;
+    _searchCityName = widget.initialSearchCityName;
+  }
 
   static const _filterDefs = [
     ('SUP', '⛽ Super 95', Color(0xFFE8A020)),
@@ -1016,8 +1351,148 @@ class _TsMapScreenState extends State<_TsMapScreen> {
   ];
 
   List<_TsMapPoint> get _visible => _filters.isEmpty
-      ? widget.points
-      : widget.points.where((p) => _filters.contains(p.fuelType)).toList();
+      ? _points
+      : _points.where((p) => _filters.contains(p.fuelType)).toList();
+
+  void _openMapSearch() {
+    final ctrl = TextEditingController();
+    final List<Map<String, dynamic>> suggestions = [];
+    bool searching = false;
+    Timer? debounce;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          Future<void> fetchSuggestions(String q) async {
+            if (q.length < 2) {
+              setModalState(() { suggestions.clear(); searching = false; });
+              return;
+            }
+            setModalState(() => searching = true);
+            try {
+              final url = Uri.parse(
+                'https://nominatim.openstreetmap.org/search'
+                '?q=${Uri.encodeComponent(q)}&format=json&limit=6&addressdetails=1',
+              );
+              final resp = await http.get(url, headers: {
+                'User-Agent': 'MoveBase/1.0 (contact@movebase.eu)',
+              }).timeout(const Duration(seconds: 5));
+              if (resp.statusCode == 200) {
+                final data = jsonDecode(resp.body) as List;
+                setModalState(() {
+                  suggestions..clear()..addAll(data.cast<Map<String, dynamic>>());
+                  searching = false;
+                });
+              } else {
+                setModalState(() => searching = false);
+              }
+            } catch (_) {
+              setModalState(() => searching = false);
+            }
+          }
+
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Ort suchen',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: ctrl,
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      hintText: 'Stadt, Ort oder PLZ…',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: searching
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(width: 16, height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2)),
+                            )
+                          : null,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    onChanged: (v) {
+                      debounce?.cancel();
+                      debounce = Timer(const Duration(milliseconds: 250),
+                          () => fetchSuggestions(v.trim()));
+                    },
+                  ),
+                  if (suggestions.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 260),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: suggestions.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, i) {
+                          final s = suggestions[i];
+                          final parts = (s['display_name'] as String).split(',');
+                          final title = parts.first.trim();
+                          final subtitle = parts.skip(1).take(2).map((e) => e.trim()).join(', ');
+                          return ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.location_on_outlined,
+                                size: 20, color: AppColors.navy),
+                            title: Text(title,
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                            subtitle: subtitle.isNotEmpty
+                                ? Text(subtitle, style: const TextStyle(fontSize: 11))
+                                : null,
+                            onTap: () async {
+                              debounce?.cancel();
+                              Navigator.pop(ctx);
+                              if (widget.onSearchCity == null) return;
+                              final lat = double.parse(s['lat'] as String);
+                              final lng = double.parse(s['lon'] as String);
+                              final cc = ((s['address'] as Map<String, dynamic>?)?['country_code'] as String?) ?? 'at';
+                              setState(() { _reloading = true; _selected = null; });
+                              try {
+                                final (fresh, nlat, nlng) = await widget.onSearchCity!(lat, lng, title, cc);
+                                if (mounted) {
+                                  setState(() {
+                                    _points = fresh;
+                                    _centerLat = nlat; _centerLng = nlng;
+                                    _searchCityName = title;
+                                    _filters.clear();
+                                    _reloading = false;
+                                  });
+                                  _mapCtrl.move(LatLng(nlat, nlng), 12);
+                                }
+                              } catch (_) {
+                                if (mounted) setState(() => _reloading = false);
+                              }
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () { debounce?.cancel(); Navigator.pop(ctx); },
+                      child: const Text('Abbrechen'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   Color _markerColor(_TsMapPoint p) {
     switch (p.fuelType) {
@@ -1035,14 +1510,70 @@ class _TsMapScreenState extends State<_TsMapScreen> {
       appBar: AppBar(
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
-        title: const Text('Tankstellen & Laden',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: _searchCityName != null
+            ? Row(children: [
+                const Icon(Icons.location_city, color: Colors.white70, size: 18),
+                const SizedBox(width: 6),
+                Expanded(child: Text(_searchCityName!,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis)),
+              ])
+            : const Text('Tankstellen & Laden',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search, color: Colors.white),
+            onPressed: _openMapSearch,
+          ),
+          if (_searchCityName != null)
+            IconButton(
+              icon: const Icon(Icons.gps_fixed, color: Color(0xFFE8A020)),
+              tooltip: 'Zurück zu meinem Standort',
+              onPressed: () async {
+                if (widget.onResetToGps == null) return;
+                setState(() { _reloading = true; _selected = null; });
+                try {
+                  final (fresh, lat, lng) = await widget.onResetToGps!();
+                  if (mounted) {
+                    setState(() {
+                      _points = fresh; _centerLat = lat; _centerLng = lng;
+                      _searchCityName = null; _filters.clear(); _reloading = false;
+                    });
+                    _mapCtrl.move(LatLng(lat, lng), 12);
+                  }
+                } catch (_) {
+                  if (mounted) setState(() => _reloading = false);
+                }
+              },
+            ),
+          if (_reloading)
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: SizedBox(width: 20, height: 20,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              onPressed: () async {
+                if (widget.onReload == null) return;
+                setState(() { _reloading = true; _selected = null; });
+                try {
+                  final fresh = await widget.onReload!();
+                  if (mounted) setState(() { _points = fresh; _reloading = false; });
+                } catch (_) {
+                  if (mounted) setState(() => _reloading = false);
+                }
+              },
+            ),
+        ],
       ),
       body: Stack(
         children: [
           FlutterMap(
+            mapController: _mapCtrl,
             options: MapOptions(
-              initialCenter: LatLng(widget.userLat, widget.userLng),
+              initialCenter: LatLng(_centerLat, _centerLng),
               initialZoom: 12,
               onTap: (_, __) => setState(() => _selected = null),
             ),
@@ -1054,15 +1585,18 @@ class _TsMapScreenState extends State<_TsMapScreen> {
               MarkerLayer(
                 markers: [
                   Marker(
-                    point: LatLng(widget.userLat, widget.userLng),
+                    point: LatLng(_centerLat, _centerLng),
                     width: 20, height: 20,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.blue,
+                        color: _searchCityName != null ? AppColors.navy : Colors.blue,
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
                       ),
+                      child: _searchCityName != null
+                          ? const Icon(Icons.location_city, color: Colors.white, size: 12)
+                          : null,
                     ),
                   ),
                   ...visible.map((p) => Marker(
@@ -1075,7 +1609,7 @@ class _TsMapScreenState extends State<_TsMapScreen> {
                           color: _markerColor(p),
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 2),
-                          boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
                         ),
                         child: Center(
                           child: Text(p.isEv ? '⚡' : '⛽',
@@ -1229,5 +1763,49 @@ class _Station {
       distance: dist,
       price: price,
     );
+  }
+
+  factory _Station.fromTankerKoenig(Map<String, dynamic> j, String fuelType) {
+    final name = (j['name'] as String?)?.isNotEmpty == true
+        ? j['name'] as String
+        : (j['brand'] as String?) ?? 'Tankstelle';
+    final street = (j['street'] as String?) ?? '';
+    final nr = (j['houseNumber'] as String?) ?? '';
+    final place = (j['place'] as String?) ?? '';
+    final plz = j['postCode']?.toString() ?? '';
+    final address = [
+      [street, nr].where((s) => s.isNotEmpty).join(' '),
+      [plz, place].where((s) => s.isNotEmpty).join(' '),
+    ].where((s) => s.isNotEmpty).join(', ');
+    final lat = (j['lat'] as num?)?.toDouble() ?? 0.0;
+    final lng = (j['lng'] as num?)?.toDouble() ?? 0.0;
+    final dist = (j['dist'] as num?)?.toDouble() ?? 0.0;
+    double? price;
+    if (fuelType == 'SUP') {
+      final raw = j['e5'];
+      if (raw is num) price = raw.toDouble();
+    } else if (fuelType == 'DIE') {
+      final raw = j['diesel'];
+      if (raw is num) price = raw.toDouble();
+    }
+    return _Station(name: name, address: address, lat: lat, lng: lng, distance: dist, price: price);
+  }
+
+  factory _Station.fromOsm(Map<String, dynamic> j, double userLat, double userLng) {
+    final center = j['center'] as Map<String, dynamic>?;
+    final lat = (j['lat'] as num?)?.toDouble() ?? (center?['lat'] as num?)?.toDouble() ?? 0.0;
+    final lng = (j['lon'] as num?)?.toDouble() ?? (center?['lon'] as num?)?.toDouble() ?? 0.0;
+    final tags = j['tags'] as Map<String, dynamic>? ?? {};
+    final name = (tags['name'] ?? tags['brand'] ?? tags['operator'] ?? 'Tankstelle') as String;
+    final street = (tags['addr:street'] as String?) ?? '';
+    final city = (tags['addr:city'] as String?) ?? '';
+    final address = [street, city].where((s) => s.isNotEmpty).join(', ');
+    final dLat = (lat - userLat) * math.pi / 180;
+    final dLng = (lng - userLng) * math.pi / 180;
+    final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+        math.cos(userLat * math.pi / 180) * math.cos(lat * math.pi / 180) *
+        math.sin(dLng / 2) * math.sin(dLng / 2);
+    final dist = 6371.0 * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return _Station(name: name, address: address, lat: lat, lng: lng, distance: dist, price: null);
   }
 }
