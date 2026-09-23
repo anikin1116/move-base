@@ -28,6 +28,8 @@ class _VerkehrScreenState extends State<VerkehrScreen> {
   bool _loading = false;
   String? _error;
   double? _userLat, _userLon;
+  String? _searchCityName;
+  bool _usingSearch = false;
 
   @override
   void initState() {
@@ -55,9 +57,16 @@ class _VerkehrScreenState extends State<VerkehrScreen> {
     if (mounted) setState(() { _loading = true; _error = null; });
 
     try {
-      final pos = await _getPosition();
-      if (mounted) setState(() { _userLat = pos.latitude; _userLon = pos.longitude; });
-      final bbox = _bbox(pos.latitude, pos.longitude, _radiusKm);
+      double lat, lon;
+      if (_usingSearch && _userLat != null && _userLon != null) {
+        lat = _userLat!;
+        lon = _userLon!;
+      } else {
+        final pos = await _getPosition();
+        lat = pos.latitude; lon = pos.longitude;
+        if (mounted) setState(() { _userLat = lat; _userLon = lon; });
+      }
+      final bbox = _bbox(lat, lon, _radiusKm);
       final url = Uri.parse(
         'https://api.tomtom.com/traffic/services/5/incidentDetails'
         '?key=$_apiKey'
@@ -73,7 +82,7 @@ class _VerkehrScreenState extends State<VerkehrScreen> {
       if (resp.statusCode == 200) {
         final data = jsonDecode(utf8.decode(resp.bodyBytes));
         final list = (data['incidents'] as List? ?? [])
-            .map((e) => _Incident.fromJson(e, pos.latitude, pos.longitude))
+            .map((e) => _Incident.fromJson(e, lat, lon))
             .where((i) => i.distanceKm <= _radiusKm && i.eventCode > 0)
             .toList()
           ..sort((a, b) {
@@ -90,6 +99,158 @@ class _VerkehrScreenState extends State<VerkehrScreen> {
     } catch (e) {
       if (mounted) setState(() { _error = 'Keine Verbindung möglich.'; _loading = false; });
     }
+  }
+
+  Future<void> _selectCity(double lat, double lon, String name) async {
+    _userLat = lat;
+    _userLon = lon;
+    _searchCityName = name;
+    _usingSearch = true;
+    _activeFilters.clear();
+    await _load();
+  }
+
+  Future<(List<_Incident>, double, double)> _selectCityForMap(double lat, double lon, String name) async {
+    await _selectCity(lat, lon, name);
+    return (_incidents ?? [], _userLat!, _userLon!);
+  }
+
+  Future<(List<_Incident>, double, double)> _resetToGpsForMap() async {
+    _usingSearch = false;
+    _searchCityName = null;
+    _activeFilters.clear();
+    await _load();
+    return (_incidents ?? [], _userLat ?? 48.2082, _userLon ?? 16.3738);
+  }
+
+  Future<List<_Incident>> _reloadForMap() async {
+    await _load();
+    return _incidents ?? [];
+  }
+
+  void _openCitySearch() {
+    final ctrl = TextEditingController();
+    final List<Map<String, dynamic>> suggestions = [];
+    bool searching = false;
+    Timer? debounce;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          Future<void> fetchSuggestions(String q) async {
+            if (q.length < 2) {
+              setModalState(() { suggestions.clear(); searching = false; });
+              return;
+            }
+            setModalState(() => searching = true);
+            try {
+              final url = Uri.parse(
+                'https://nominatim.openstreetmap.org/search'
+                '?q=${Uri.encodeComponent(q)}&format=json&limit=6&addressdetails=1',
+              );
+              final resp = await http.get(url, headers: {
+                'User-Agent': 'MoveBase/1.0 (contact@movebase.eu)',
+              }).timeout(const Duration(seconds: 5));
+              if (resp.statusCode == 200) {
+                final data = jsonDecode(resp.body) as List;
+                setModalState(() {
+                  suggestions..clear()..addAll(data.cast<Map<String, dynamic>>());
+                  searching = false;
+                });
+              } else {
+                setModalState(() => searching = false);
+              }
+            } catch (_) {
+              setModalState(() => searching = false);
+            }
+          }
+
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Ort suchen',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: ctrl,
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      hintText: 'Stadt, Ort oder PLZ…',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: searching
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(width: 16, height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2)),
+                            )
+                          : null,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    onChanged: (v) {
+                      debounce?.cancel();
+                      debounce = Timer(const Duration(milliseconds: 250),
+                          () => fetchSuggestions(v.trim()));
+                    },
+                  ),
+                  if (suggestions.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 260),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: suggestions.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, i) {
+                          final s = suggestions[i];
+                          final parts = (s['display_name'] as String).split(',');
+                          final title = parts.first.trim();
+                          final subtitle = parts.skip(1).take(2).map((e) => e.trim()).join(', ');
+                          return ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.location_on_outlined,
+                                size: 20, color: AppColors.navy),
+                            title: Text(title,
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                            subtitle: subtitle.isNotEmpty
+                                ? Text(subtitle, style: const TextStyle(fontSize: 11))
+                                : null,
+                            onTap: () {
+                              debounce?.cancel();
+                              Navigator.pop(ctx);
+                              _selectCity(
+                                double.parse(s['lat'] as String),
+                                double.parse(s['lon'] as String),
+                                title,
+                              );
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () { debounce?.cancel(); Navigator.pop(ctx); },
+                      child: const Text('Abbrechen'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
   }
 
   Future<Position> _getPosition() async {
@@ -139,16 +300,38 @@ class _VerkehrScreenState extends State<VerkehrScreen> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.search, color: Colors.white),
+            onPressed: _openCitySearch,
+          ),
+          if (_searchCityName != null)
+            IconButton(
+              icon: const Icon(Icons.gps_fixed, color: Color(0xFFE8A020)),
+              tooltip: 'Zurück zu meinem Standort',
+              onPressed: () {
+                _usingSearch = false;
+                _searchCityName = null;
+                _activeFilters.clear();
+                _load();
+              },
+            ),
           if (!_loading && _incidents != null && _incidents!.isNotEmpty && _userLat != null)
             IconButton(
               icon: const Icon(Icons.map_outlined, color: Colors.white),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(
-                builder: (_) => _VerkehrMapScreen(
-                  incidents: _incidents!,
-                  userLat: _userLat!,
-                  userLon: _userLon!,
-                ),
-              )),
+              onPressed: () async {
+                await Navigator.push(context, MaterialPageRoute(
+                  builder: (_) => _VerkehrMapScreen(
+                    incidents: _incidents!,
+                    userLat: _userLat!,
+                    userLon: _userLon!,
+                    initialSearchCityName: _searchCityName,
+                    onSearchCity: (lat, lon, name) => _selectCityForMap(lat, lon, name),
+                    onResetToGps: () => _resetToGpsForMap(),
+                    onReload: () => _reloadForMap(),
+                  ),
+                ));
+                if (mounted) setState(() {});
+              },
             ),
           if (!_loading)
             IconButton(
@@ -544,7 +727,19 @@ class _Incident {
 class _VerkehrMapScreen extends StatefulWidget {
   final List<_Incident> incidents;
   final double userLat, userLon;
-  const _VerkehrMapScreen({required this.incidents, required this.userLat, required this.userLon});
+  final Future<(List<_Incident>, double, double)> Function(double, double, String)? onSearchCity;
+  final Future<(List<_Incident>, double, double)> Function()? onResetToGps;
+  final Future<List<_Incident>> Function()? onReload;
+  final String? initialSearchCityName;
+  const _VerkehrMapScreen({
+    required this.incidents,
+    required this.userLat,
+    required this.userLon,
+    this.onSearchCity,
+    this.onResetToGps,
+    this.onReload,
+    this.initialSearchCityName,
+  });
 
   @override
   State<_VerkehrMapScreen> createState() => _VerkehrMapScreenState();
@@ -553,34 +748,237 @@ class _VerkehrMapScreen extends StatefulWidget {
 class _VerkehrMapScreenState extends State<_VerkehrMapScreen> {
   _Incident? _selected;
   final Set<int> _filters = {};
+  late List<_Incident> _incidents;
+  late double _centerLat, _centerLon;
+  String? _searchCityName;
+  bool _reloading = false;
+  final _mapCtrl = MapController();
+
+  @override
+  void initState() {
+    super.initState();
+    _incidents = widget.incidents;
+    _centerLat = widget.userLat;
+    _centerLon = widget.userLon;
+    _searchCityName = widget.initialSearchCityName;
+  }
 
   List<_Incident> get _visible => _filters.isEmpty
-      ? widget.incidents.where((i) => i.lat != null).toList()
-      : widget.incidents.where((i) => i.lat != null && _filters.contains(i.eventCode)).toList();
+      ? _incidents.where((i) => i.lat != null).toList()
+      : _incidents.where((i) => i.lat != null && _filters.contains(i.eventCode)).toList();
+
+  void _openMapSearch() {
+    final ctrl = TextEditingController();
+    final List<Map<String, dynamic>> suggestions = [];
+    bool searching = false;
+    Timer? debounce;
+
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setModalState) {
+          Future<void> fetchSuggestions(String q) async {
+            if (q.length < 2) {
+              setModalState(() { suggestions.clear(); searching = false; });
+              return;
+            }
+            setModalState(() => searching = true);
+            try {
+              final url = Uri.parse(
+                'https://nominatim.openstreetmap.org/search'
+                '?q=${Uri.encodeComponent(q)}&format=json&limit=6&addressdetails=1',
+              );
+              final resp = await http.get(url, headers: {
+                'User-Agent': 'MoveBase/1.0 (contact@movebase.eu)',
+              }).timeout(const Duration(seconds: 5));
+              if (resp.statusCode == 200) {
+                final data = jsonDecode(resp.body) as List;
+                setModalState(() {
+                  suggestions..clear()..addAll(data.cast<Map<String, dynamic>>());
+                  searching = false;
+                });
+              } else {
+                setModalState(() => searching = false);
+              }
+            } catch (_) {
+              setModalState(() => searching = false);
+            }
+          }
+
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Ort suchen',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: ctrl,
+                    autofocus: true,
+                    textCapitalization: TextCapitalization.sentences,
+                    decoration: InputDecoration(
+                      hintText: 'Stadt, Ort oder PLZ…',
+                      prefixIcon: const Icon(Icons.search),
+                      suffixIcon: searching
+                          ? const Padding(
+                              padding: EdgeInsets.all(12),
+                              child: SizedBox(width: 16, height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2)),
+                            )
+                          : null,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                    ),
+                    onChanged: (v) {
+                      debounce?.cancel();
+                      debounce = Timer(const Duration(milliseconds: 250),
+                          () => fetchSuggestions(v.trim()));
+                    },
+                  ),
+                  if (suggestions.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxHeight: 260),
+                      child: ListView.separated(
+                        shrinkWrap: true,
+                        itemCount: suggestions.length,
+                        separatorBuilder: (_, __) => const Divider(height: 1),
+                        itemBuilder: (_, i) {
+                          final s = suggestions[i];
+                          final parts = (s['display_name'] as String).split(',');
+                          final title = parts.first.trim();
+                          final subtitle = parts.skip(1).take(2).map((e) => e.trim()).join(', ');
+                          return ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.location_on_outlined,
+                                size: 20, color: AppColors.navy),
+                            title: Text(title,
+                                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+                            subtitle: subtitle.isNotEmpty
+                                ? Text(subtitle, style: const TextStyle(fontSize: 11))
+                                : null,
+                            onTap: () async {
+                              debounce?.cancel();
+                              Navigator.pop(ctx);
+                              if (widget.onSearchCity == null) return;
+                              final lat = double.parse(s['lat'] as String);
+                              final lon = double.parse(s['lon'] as String);
+                              setState(() { _reloading = true; _selected = null; });
+                              try {
+                                final (fresh, nlat, nlon) = await widget.onSearchCity!(lat, lon, title);
+                                if (mounted) {
+                                  setState(() {
+                                    _incidents = fresh;
+                                    _centerLat = nlat; _centerLon = nlon;
+                                    _searchCityName = title;
+                                    _filters.clear();
+                                    _reloading = false;
+                                  });
+                                  _mapCtrl.move(LatLng(nlat, nlon), 11);
+                                }
+                              } catch (_) {
+                                if (mounted) setState(() => _reloading = false);
+                              }
+                            },
+                          );
+                        },
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () { debounce?.cancel(); Navigator.pop(ctx); },
+                      child: const Text('Abbrechen'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final visible = _visible;
-    final allCodes = widget.incidents.map((i) => i.eventCode).toSet().toList()..sort();
-    final center = visible.isNotEmpty
-        ? LatLng(
-            visible.map((i) => i.lat!).reduce((a, b) => a + b) / visible.length,
-            visible.map((i) => i.lon!).reduce((a, b) => a + b) / visible.length,
-          )
-        : LatLng(widget.userLat, widget.userLon);
+    final allCodes = _incidents.map((i) => i.eventCode).toSet().toList()..sort();
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: AppColors.navy,
         foregroundColor: Colors.white,
-        title: const Text('Verkehrskarte',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: _searchCityName != null
+            ? Row(children: [
+                const Icon(Icons.location_city, color: Colors.white70, size: 18),
+                const SizedBox(width: 6),
+                Expanded(child: Text(_searchCityName!,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    overflow: TextOverflow.ellipsis)),
+              ])
+            : const Text('Verkehrskarte',
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search, color: Colors.white),
+            onPressed: _openMapSearch,
+          ),
+          if (_searchCityName != null)
+            IconButton(
+              icon: const Icon(Icons.gps_fixed, color: Color(0xFFE8A020)),
+              tooltip: 'Zurück zu meinem Standort',
+              onPressed: () async {
+                if (widget.onResetToGps == null) return;
+                setState(() { _reloading = true; _selected = null; });
+                try {
+                  final (fresh, lat, lon) = await widget.onResetToGps!();
+                  if (mounted) {
+                    setState(() {
+                      _incidents = fresh; _centerLat = lat; _centerLon = lon;
+                      _searchCityName = null; _filters.clear(); _reloading = false;
+                    });
+                    _mapCtrl.move(LatLng(lat, lon), 11);
+                  }
+                } catch (_) {
+                  if (mounted) setState(() => _reloading = false);
+                }
+              },
+            ),
+          if (_reloading)
+            const Padding(
+              padding: EdgeInsets.only(right: 16),
+              child: SizedBox(width: 20, height: 20,
+                  child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.refresh, color: Colors.white),
+              onPressed: () async {
+                if (widget.onReload == null) return;
+                setState(() { _reloading = true; _selected = null; });
+                try {
+                  final fresh = await widget.onReload!();
+                  if (mounted) setState(() { _incidents = fresh; _reloading = false; });
+                } catch (_) {
+                  if (mounted) setState(() => _reloading = false);
+                }
+              },
+            ),
+        ],
       ),
       body: Stack(
         children: [
           FlutterMap(
+            mapController: _mapCtrl,
             options: MapOptions(
-              initialCenter: center,
+              initialCenter: LatLng(_centerLat, _centerLon),
               initialZoom: 11,
               onTap: (_, __) => setState(() => _selected = null),
             ),
@@ -592,15 +990,18 @@ class _VerkehrMapScreenState extends State<_VerkehrMapScreen> {
               MarkerLayer(
                 markers: [
                   Marker(
-                    point: LatLng(widget.userLat, widget.userLon),
+                    point: LatLng(_centerLat, _centerLon),
                     width: 20, height: 20,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.blue,
+                        color: _searchCityName != null ? AppColors.navy : Colors.blue,
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 2),
-                        boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                        boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
                       ),
+                      child: _searchCityName != null
+                          ? const Icon(Icons.location_city, color: Colors.white, size: 12)
+                          : null,
                     ),
                   ),
                   ...visible.map((i) => Marker(
@@ -613,7 +1014,7 @@ class _VerkehrMapScreenState extends State<_VerkehrMapScreen> {
                           color: i.color,
                           shape: BoxShape.circle,
                           border: Border.all(color: Colors.white, width: 2),
-                          boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                          boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 4)],
                         ),
                         child: Center(
                           child: Text(i.icon, style: const TextStyle(fontSize: 16)),

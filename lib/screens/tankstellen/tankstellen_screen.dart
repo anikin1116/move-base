@@ -48,6 +48,12 @@ class _TankstellenScreenState extends State<TankstellenScreen>
   String? _searchCityName;
   bool _usingSearch = false;
   String? _searchCountryCode;
+  Map<String, double?> _countryAvgPrices = {};
+  bool _avgPriceLoading = false;
+  bool _slowLoading = false;
+  Timer? _slowLoadTimer;
+  bool _slowAvgLoading = false;
+  Timer? _slowAvgTimer;
 
   @override
   void initState() {
@@ -77,6 +83,8 @@ class _TankstellenScreenState extends State<TankstellenScreen>
   @override
   void dispose() {
     _tabCtrl.dispose();
+    _slowLoadTimer?.cancel();
+    _slowAvgTimer?.cancel();
     super.dispose();
   }
 
@@ -84,11 +92,20 @@ class _TankstellenScreenState extends State<TankstellenScreen>
     _usingSearch = false;
     _searchCityName = null;
     _searchCountryCode = null;
+    _countryAvgPrices = {};
+    _avgPriceLoading = false;
+    _loadingTypes.clear();
     setState(() {
       _loading = true;
       _error = null;
       _cache.clear();
       _evStations = null;
+      _evLoading = false;
+      _slowLoading = false;
+    });
+    _slowLoadTimer?.cancel();
+    _slowLoadTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _slowLoading = true);
     });
     try {
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
@@ -109,7 +126,8 @@ class _TankstellenScreenState extends State<TankstellenScreen>
       if (last != null) {
         _lat = last.latitude;
         _lng = last.longitude;
-        if (mounted) setState(() => _loading = false);
+        _slowLoadTimer?.cancel();
+        if (mounted) setState(() { _loading = false; _slowLoading = false; });
         await Future.wait([..._fuelTypes.map(_loadFuel), _loadEv()]);
         _refreshPosition();
       } else {
@@ -118,14 +136,17 @@ class _TankstellenScreenState extends State<TankstellenScreen>
                 const LocationSettings(accuracy: LocationAccuracy.low));
         _lat = pos.latitude;
         _lng = pos.longitude;
-        if (mounted) setState(() => _loading = false);
+        _slowLoadTimer?.cancel();
+        if (mounted) setState(() { _loading = false; _slowLoading = false; });
         await Future.wait([..._fuelTypes.map(_loadFuel), _loadEv()]);
       }
     } catch (e) {
+      _slowLoadTimer?.cancel();
       if (mounted) {
         setState(() {
           _error = e.toString().replaceAll('Exception: ', '');
           _loading = false;
+          _slowLoading = false;
         });
       }
     }
@@ -137,6 +158,7 @@ class _TankstellenScreenState extends State<TankstellenScreen>
       final pos = await Geolocator.getCurrentPosition(
           locationSettings:
               const LocationSettings(accuracy: LocationAccuracy.medium));
+      if (_usingSearch) return; // User könnte zwischenzeitlich Stadtsuche gestartet haben
       if ((_lat! - pos.latitude).abs() > 0.002 ||
           (_lng! - pos.longitude).abs() > 0.002) {
         _lat = pos.latitude;
@@ -152,12 +174,13 @@ class _TankstellenScreenState extends State<TankstellenScreen>
     if (_cache.containsKey(fuelType)) return;
     if (_loadingTypes.contains(fuelType)) return;
     if (_usingSearch && _searchCountryCode != null && _searchCountryCode != 'at') {
-      // TankerKönig (DE) – aktivieren sobald API-Key vorhanden
-      // if (_searchCountryCode == 'de') {
-      //   await _loadFuelTankerKoenig(fuelType);
-      // } else {
-      await _loadFuelOverpass(fuelType);
-      // }
+      if (_searchCountryCode == 'fr') {
+        await _loadFuelFrance(fuelType);
+      } else if (_searchCountryCode == 'de') {
+        await _loadFuelTankerKoenig(fuelType);
+      } else {
+        await _loadFuelOverpass(fuelType);
+      }
       return;
     }
     _loadingTypes.add(fuelType);
@@ -176,8 +199,44 @@ class _TankstellenScreenState extends State<TankstellenScreen>
             raw.map((j) => _Station.fromJson(j, fuelType)).toList();
       }
     } catch (_) {}
+    _cache.putIfAbsent(fuelType, () => []);
     _loadingTypes.remove(fuelType);
     if (mounted) setState(() {});
+  }
+
+  Future<List<_Station>?> _fetchOverpassParallel(String encoded, double userLat, double userLng) async {
+    final completer = Completer<List<_Station>?>();
+    var remaining = _overpassHosts.length;
+    final deadline = Timer(const Duration(seconds: 7), () {
+      if (!completer.isCompleted) completer.complete(null);
+    });
+    for (final host in _overpassHosts) {
+      (() async {
+        try {
+          final r = await http.get(
+            Uri.parse('$host?data=$encoded'),
+            headers: {'Accept': 'application/json', 'User-Agent': 'MoveBase-App/1.0'},
+          ).timeout(const Duration(seconds: 8));
+          if (r.statusCode == 200) {
+            final data = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
+            final parsed = (data['elements'] as List<dynamic>? ?? [])
+                .map((e) => _Station.fromOsm(e as Map<String, dynamic>, userLat, userLng))
+                .toList()..sort((a, b) => a.distance.compareTo(b.distance));
+            if (parsed.isNotEmpty && !completer.isCompleted) {
+              deadline.cancel();
+              completer.complete(parsed);
+              return;
+            }
+          }
+        } catch (_) {}
+        remaining--;
+        if (remaining == 0 && !completer.isCompleted) {
+          deadline.cancel();
+          completer.complete(null);
+        }
+      })();
+    }
+    return completer.future;
   }
 
   Future<void> _loadFuelOverpass(String fuelType) async {
@@ -187,25 +246,24 @@ class _TankstellenScreenState extends State<TankstellenScreen>
     }
     if (_loadingTypes.contains('_overpass')) return;
     _loadingTypes.add('_overpass');
-    List<_Station>? stations;
-    try {
-      for (final host in _overpassHosts) {
-        try {
-          final encoded = Uri.encodeQueryComponent('[out:json];(node["amenity"="fuel"](around:15000,$_lat,$_lng);way["amenity"="fuel"](around:15000,$_lat,$_lng););out center;');
-          final r = await http.get(
-            Uri.parse('$host?data=$encoded'),
-            headers: {'Accept': 'application/json', 'User-Agent': 'MoveBase-App/1.0'},
-          ).timeout(const Duration(seconds: 10));
-          if (r.statusCode == 200) {
-            final data = jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
-            stations = (data['elements'] as List<dynamic>? ?? [])
-                .map((e) => _Station.fromOsm(e as Map<String, dynamic>, _lat!, _lng!))
-                .toList()..sort((a, b) => a.distance.compareTo(b.distance));
-            break;
-          }
-        } catch (_) {}
+
+    final encoded = Uri.encodeQueryComponent('[out:json];(node["amenity"="fuel"](around:15000,$_lat,$_lng);way["amenity"="fuel"](around:15000,$_lat,$_lng););out center;');
+    final capturedLat = _lat!;
+    final capturedLng = _lng!;
+
+    var stations = await _fetchOverpassParallel(encoded, capturedLat, capturedLng);
+    // Wenn alle Hosts leer antworteten (Ratelimit), einmal nach 2 s wiederholen
+    if (stations == null && mounted && _lat == capturedLat && _lng == capturedLng) {
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted && _lat == capturedLat && _lng == capturedLng) {
+        stations = await _fetchOverpassParallel(encoded, capturedLat, capturedLng);
       }
-    } catch (_) {}
+    }
+
+    if (!mounted || _lat != capturedLat || _lng != capturedLng) {
+      _loadingTypes.remove('_overpass');
+      return;
+    }
     final result = stations ?? <_Station>[];
     for (final ft in _fuelTypes) { _cache[ft] = result; }
     _loadingTypes.remove('_overpass');
@@ -214,7 +272,8 @@ class _TankstellenScreenState extends State<TankstellenScreen>
 
   // TankerKönig API-Key (nur Deutschland) – echten Key eintragen:
   // https://creativecommons.tankerkoenig.de
-  static const _tankerKoenigKey = '00000000-0000-0000-0000-000000000002'; // TODO: echten Key eintragen
+  // Lizenz: CC BY 4.0 – Namensnennung erforderlich (www.tankerkoenig.de), auch im Store-Text
+  static const _tankerKoenigKey = '8fc74f15-4a91-4b21-b448-aa22c65aa206';
 
   Future<void> _loadFuelTankerKoenig(String fuelType) async {
     if (_cache.containsKey(fuelType)) return;
@@ -247,28 +306,94 @@ class _TankstellenScreenState extends State<TankstellenScreen>
     if (mounted) setState(() {});
   }
 
+  // Frankreich: data.economie.gouv.fr – kostenlose Regierungs-API mit Geo-Filter
+  Future<void> _loadFuelFrance(String fuelType) async {
+    if (_cache.containsKey(fuelType)) return;
+    for (final ft in _fuelTypes) {
+      if (_cache.containsKey(ft)) { _cache[fuelType] = _cache[ft]!; if (mounted) setState(() {}); return; }
+    }
+    if (_loadingTypes.contains('_fr')) return;
+    _loadingTypes.add('_fr');
+    try {
+      final lat = _lat!;
+      final lng = _lng!;
+      final uri = Uri.https(
+        'data.economie.gouv.fr',
+        '/api/explore/v2.1/catalog/datasets/prix-des-carburants-en-france-flux-instantane-v2/records',
+        {
+          'limit': '100',
+          'select': 'id,geom,adresse,ville,gazole_prix,sp95_prix,e10_prix,sp98_prix,gplc_prix',
+          'where': "distance(geom, geom'POINT($lng $lat)', 15km)",
+          'order_by': "distance(geom, geom'POINT($lng $lat)')",
+        },
+      );
+      final resp = await http
+          .get(uri, headers: {'Accept': 'application/json', 'User-Agent': 'MoveBase-App/1.0'})
+          .timeout(const Duration(seconds: 15));
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(resp.bodyBytes)) as Map<String, dynamic>;
+        final results = (data['results'] as List<dynamic>?) ?? [];
+        final List<_Station> dieList = [];
+        final List<_Station> supList = [];
+        final List<_Station> gasList = [];
+        for (final r in results) {
+          final m = r as Map<String, dynamic>;
+          final geom = m['geom'] as Map<String, dynamic>?;
+          final stLat = (geom?['lat'] as num?)?.toDouble() ?? 0.0;
+          final stLng = (geom?['lon'] as num?)?.toDouble() ?? 0.0;
+          final adresse = (m['adresse'] as String?) ?? '';
+          final ville = (m['ville'] as String?) ?? '';
+          final address = [adresse, ville].where((s) => s.isNotEmpty).join(', ');
+          final dLat = (stLat - lat) * math.pi / 180;
+          final dLng = (stLng - lng) * math.pi / 180;
+          final a = math.sin(dLat / 2) * math.sin(dLat / 2) +
+              math.cos(lat * math.pi / 180) * math.cos(stLat * math.pi / 180) *
+              math.sin(dLng / 2) * math.sin(dLng / 2);
+          final dist = 6371.0 * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+          final gazole = (m['gazole_prix'] as num?)?.toDouble();
+          final sup = (m['sp95_prix'] as num?)?.toDouble() ??
+                     (m['e10_prix'] as num?)?.toDouble() ??
+                     (m['sp98_prix'] as num?)?.toDouble();
+          final gplc = (m['gplc_prix'] as num?)?.toDouble();
+          final name = adresse.isNotEmpty ? adresse : 'Tankstelle';
+          dieList.add(_Station(name: name, address: address, lat: stLat, lng: stLng, distance: dist, price: gazole));
+          supList.add(_Station(name: name, address: address, lat: stLat, lng: stLng, distance: dist, price: sup));
+          gasList.add(_Station(name: name, address: address, lat: stLat, lng: stLng, distance: dist, price: gplc));
+        }
+        _cache['DIE'] = dieList;
+        _cache['SUP'] = supList;
+        _cache['GAS'] = gasList;
+      }
+    } catch (_) {}
+    for (final ft in _fuelTypes) { _cache.putIfAbsent(ft, () => []); }
+    _loadingTypes.remove('_fr');
+    if (mounted) setState(() {});
+  }
+
   static const _overpassHosts = [
     'https://overpass-api.de/api/interpreter',
     'https://overpass.kumi.systems/api/interpreter',
     'https://maps.mail.ru/osm/tools/overpass/api/interpreter',
   ];
 
-  Future<void> _loadEv() async {
-    if (_evStations != null || _evLoading) return;
-    _evLoading = true;
-    if (mounted) setState(() {});
-
-    // Alle Quellen parallel starten – erste erfolgreiche Antwort gewinnt
+  Future<List<_EvStation>?> _fetchEvParallel(double capLat, double capLng) async {
     final completer = Completer<List<_EvStation>?>();
     var remaining = 1 + _overpassHosts.length;
+    final deadline = Timer(const Duration(seconds: 7), () {
+      if (!completer.isCompleted) completer.complete(null);
+    });
 
     void onResult(List<_EvStation>? result) {
       if (completer.isCompleted) return;
-      if (result != null) {
+      if (result != null && result.isNotEmpty) {
+        deadline.cancel();
         completer.complete(result);
       } else {
         remaining--;
-        if (remaining == 0) completer.complete(null);
+        if (remaining == 0) {
+          deadline.cancel();
+          completer.complete(null);
+        }
       }
     }
 
@@ -277,7 +402,31 @@ class _TankstellenScreenState extends State<TankstellenScreen>
       _tryOverpassHost(host).then(onResult, onError: (_) => onResult(null));
     }
 
-    _evStations = await completer.future ?? [];
+    return completer.future;
+  }
+
+  Future<void> _loadEv() async {
+    if (_evStations != null || _evLoading) return;
+    _evLoading = true;
+    if (mounted) setState(() {});
+
+    final capLat = _lat!;
+    final capLng = _lng!;
+
+    var result = await _fetchEvParallel(capLat, capLng);
+    // Wenn alle Quellen leer (Ratelimit), einmal nach 2 s wiederholen
+    if (result == null && mounted && _lat == capLat && _lng == capLng) {
+      await Future.delayed(const Duration(seconds: 2));
+      if (mounted && _lat == capLat && _lng == capLng) {
+        result = await _fetchEvParallel(capLat, capLng);
+      }
+    }
+
+    if (!mounted || _lat != capLat || _lng != capLng) {
+      _evLoading = false;
+      return;
+    }
+    _evStations = result ?? [];
     _evLoading = false;
     if (mounted) setState(() {});
   }
@@ -306,26 +455,78 @@ class _TankstellenScreenState extends State<TankstellenScreen>
   Future<List<_EvStation>?> _tryOverpassHost(String host) async {
     try {
       final encodedQuery = Uri.encodeQueryComponent(
-          '[out:json];(node["amenity"="charging_station"](around:15000,$_lat,$_lng););out body;');
+          '[out:json];(node["amenity"="charging_station"](around:15000,$_lat,$_lng);'
+          'way["amenity"="charging_station"](around:15000,$_lat,$_lng););out center;');
       final r = await http.get(
         Uri.parse('$host?data=$encodedQuery'),
         headers: {
           'Accept': 'application/json',
           'User-Agent': 'MoveBase-App/1.0.4',
         },
-      ).timeout(const Duration(seconds: 15));
+      ).timeout(const Duration(seconds: 8));
       if (r.statusCode == 200) {
         final data =
             jsonDecode(utf8.decode(r.bodyBytes)) as Map<String, dynamic>;
         final elements = data['elements'] as List<dynamic>? ?? [];
-        return elements
+        final stations = elements
             .map((e) =>
                 _EvStation.fromOsm(e as Map<String, dynamic>, _lat!, _lng!))
+            .where((s) => s.lat != 0.0 || s.lng != 0.0)
             .toList()
           ..sort((a, b) => a.distance.compareTo(b.distance));
+        return stations.isEmpty ? null : stations;
       }
     } catch (_) {}
     return null;
+  }
+
+  Future<void> _loadCountryAvgPrice(String countryCode) async {
+    if (_avgPriceLoading) return;
+    _avgPriceLoading = true;
+    _slowAvgTimer?.cancel();
+    _slowAvgLoading = false;
+    _slowAvgTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted) setState(() => _slowAvgLoading = true);
+    });
+    if (mounted) setState(() {});
+    try {
+      final cc = countryCode.toUpperCase();
+      final uri = Uri.parse(
+          'https://www.fuel-prices.eu/live/api.php?action=summary&country=$cc');
+      final resp = await http
+          .get(uri, headers: {'Accept': 'application/json', 'User-Agent': 'MoveBase/1.0'})
+          .timeout(const Duration(seconds: 10));
+      if (resp.statusCode == 200) {
+        final data = jsonDecode(utf8.decode(resp.bodyBytes));
+        // Echte Antwortstruktur: {"ok":true,"data":{"countries":[{"fuels":{"diesel":{"avg":1.75},"sp95":{"avg":1.80},...}}]}}
+        if (data is Map<String, dynamic> && data['ok'] == true) {
+          final countries = (data['data']?['countries'] as List<dynamic>?) ?? [];
+          if (countries.isNotEmpty) {
+            final fuels = (countries[0]?['fuels'] as Map<String, dynamic>?) ?? {};
+            double? getAvg(String key) {
+              final v = fuels[key];
+              if (v is Map<String, dynamic>) {
+                final avg = v['avg'];
+                if (avg is num) return avg.toDouble();
+              }
+              return null;
+            }
+            final die = getAvg('diesel');
+            final sup = getAvg('sp95') ?? getAvg('sp98') ?? getAvg('e5');
+            final gas = getAvg('e10') ?? getAvg('gpl') ?? getAvg('lpg');
+            _countryAvgPrices = {
+              if (die != null) 'DIE': die,
+              if (sup != null) 'SUP': sup,
+              if (gas != null) 'GAS': gas,
+            };
+          }
+        }
+      }
+    } catch (_) {}
+    _slowAvgTimer?.cancel();
+    _slowAvgLoading = false;
+    _avgPriceLoading = false;
+    if (mounted) setState(() {});
   }
 
   List<_TsMapPoint> _buildAllPoints() {
@@ -357,10 +558,14 @@ class _TankstellenScreenState extends State<TankstellenScreen>
     _searchCityName = name;
     _searchCountryCode = countryCode;
     _usingSearch = true;
+    _loadingTypes.clear();
     _cache.clear();
     _evStations = null;
     _evLoading = false;
-    if (mounted) setState(() { _loading = false; _error = null; });
+    _countryAvgPrices = {};
+    _slowLoadTimer?.cancel();
+    if (mounted) setState(() { _loading = false; _error = null; _slowLoading = false; });
+    if (countryCode != 'at') _loadCountryAvgPrice(countryCode);
     await Future.wait([..._fuelTypes.map(_loadFuel), _loadEv()]);
   }
 
@@ -373,9 +578,12 @@ class _TankstellenScreenState extends State<TankstellenScreen>
     _usingSearch = false;
     _searchCityName = null;
     _searchCountryCode = null;
+    _countryAvgPrices = {};
+    _avgPriceLoading = false;
     _cache.clear();
     _evStations = null;
-    if (mounted) setState(() { _loading = false; _error = null; });
+    _slowLoadTimer?.cancel();
+    if (mounted) setState(() { _loading = false; _error = null; _slowLoading = false; });
     try {
       final pos = await Geolocator.getCurrentPosition(
           locationSettings: const LocationSettings(accuracy: LocationAccuracy.low));
@@ -387,8 +595,10 @@ class _TankstellenScreenState extends State<TankstellenScreen>
   }
 
   Future<List<_TsMapPoint>> _reloadForMap() async {
+    _loadingTypes.clear();
     _cache.clear();
     _evStations = null;
+    _evLoading = false;
     if (mounted) setState(() {});
     await Future.wait([..._fuelTypes.map(_loadFuel), _loadEv()]);
     return _buildAllPoints();
@@ -576,11 +786,9 @@ class _TankstellenScreenState extends State<TankstellenScreen>
             IconButton(
               icon: const Icon(Icons.map_outlined, color: AppColors.navy),
               onPressed: () async {
-                final allPoints = _buildAllPoints();
-                if (allPoints.isEmpty) return;
                 await Navigator.push(context, MaterialPageRoute(
                   builder: (_) => _TsMapScreen(
-                    points: allPoints,
+                    points: _buildAllPoints(),
                     userLat: _lat!, userLng: _lng!,
                     initialSearchCityName: _searchCityName,
                     onSearchCity: (lat, lng, name, countryCode) => _selectCityForMap(lat, lng, name, countryCode),
@@ -594,8 +802,13 @@ class _TankstellenScreenState extends State<TankstellenScreen>
           IconButton(
             icon: const Icon(Icons.refresh, color: AppColors.navy),
             onPressed: () {
-              _cache.clear();
-              _init();
+              if (_usingSearch) {
+                _loadingTypes.clear();
+                setState(() { _cache.clear(); _evStations = null; _evLoading = false; });
+                Future.wait([..._fuelTypes.map(_loadFuel), _loadEv()]);
+              } else {
+                _init();
+              }
             },
           ),
         ],
@@ -624,8 +837,27 @@ class _TankstellenScreenState extends State<TankstellenScreen>
         ),
       ),
       body: _loading
-          ? const Center(
-              child: CircularProgressIndicator(color: AppColors.navy))
+          ? Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(color: AppColors.navy),
+                  if (_slowLoading) ...[
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(
+                        Localizations.localeOf(context).languageCode == 'en'
+                            ? 'One moment, taking a bit longer than usual…'
+                            : 'Einen Moment, dauert etwas länger als gewöhnlich…',
+                        style: const TextStyle(color: Colors.grey, fontSize: 13),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            )
           : _error != null
               ? _buildError()
               : Column(
@@ -650,15 +882,52 @@ class _TankstellenScreenState extends State<TankstellenScreen>
                           ),
                         ]),
                       ),
-                    if (_searchCityName != null && _searchCountryCode != null && _searchCountryCode != 'at')
+                    if (_searchCityName != null &&
+                        _searchCountryCode != null &&
+                        _searchCountryCode != 'at' &&
+                        _searchCountryCode != 'de' &&
+                        (_avgPriceLoading || _countryAvgPrices.isNotEmpty))
+                      Builder(builder: (context) {
+                        final lang = Localizations.localeOf(context).languageCode;
+                        final isEn = lang == 'en';
+                        String text;
+                        if (_avgPriceLoading) {
+                          text = _slowAvgLoading
+                              ? (isEn ? 'One moment, taking a bit longer than usual…' : 'Einen Moment, dauert etwas länger als gewöhnlich…')
+                              : (isEn ? 'Loading average prices…' : 'Durchschnittspreise werden geladen…');
+                        } else {
+                          final parts = <String>[];
+                          final sup = _countryAvgPrices['SUP'];
+                          final die = _countryAvgPrices['DIE'];
+                          final gas = _countryAvgPrices['GAS'];
+                          if (sup != null) parts.add('Super ${sup.toStringAsFixed(3)} €');
+                          if (die != null) parts.add('Diesel ${die.toStringAsFixed(3)} €');
+                          if (gas != null) parts.add('Gas ${gas.toStringAsFixed(3)} €');
+                          final label = isEn ? 'Country average' : 'Landesdurchschnitt';
+                          text = 'Ø ${_searchCountryCode!.toUpperCase()}: ${parts.join(' · ')} ($label)';
+                        }
+                        return Container(
+                          color: const Color(0xFFFFF8E1),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                          child: Row(children: [
+                            const Icon(Icons.info_outline, size: 13, color: Color(0xFFE65100)),
+                            const SizedBox(width: 6),
+                            Expanded(child: Text(text,
+                              style: const TextStyle(fontSize: 11, color: Color(0xFFE65100)))),
+                          ]),
+                        );
+                      }),
+                    if (_searchCountryCode == 'de')
                       Container(
-                        color: const Color(0xFFFFF8E1),
+                        color: const Color(0xFFF1F8E9),
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                        child: const Row(children: [
-                          Icon(Icons.info_outline, size: 13, color: Color(0xFFE65100)),
-                          SizedBox(width: 6),
-                          Text('Preise derzeit nur in Österreich verfügbar',
-                              style: TextStyle(fontSize: 11, color: Color(0xFFE65100))),
+                        child: Row(children: [
+                          const Icon(Icons.verified_outlined, size: 13, color: Color(0xFF33691E)),
+                          const SizedBox(width: 6),
+                          Expanded(child: Text(
+                            'Preisdaten: www.tankerkoenig.de (CC BY 4.0)',
+                            style: const TextStyle(fontSize: 11, color: Color(0xFF33691E)),
+                          )),
                         ]),
                       ),
                     if (_tabCtrl.index < 3) _buildSortBar(),
@@ -747,7 +1016,7 @@ class _TankstellenScreenState extends State<TankstellenScreen>
                                             const SizedBox(height: 10),
                                             TextButton.icon(
                                               onPressed: () {
-                                                _evStations = null;
+                                                setState(() { _evStations = null; });
                                                 _loadEv();
                                               },
                                               icon: const Icon(Icons.refresh,
@@ -1142,8 +1411,12 @@ class _EvStation {
 
   factory _EvStation.fromOsm(
       Map<String, dynamic> j, double userLat, double userLng) {
-    final lat = (j['lat'] as num?)?.toDouble() ?? 0.0;
-    final lng = (j['lon'] as num?)?.toDouble() ?? 0.0;
+    // nodes: lat/lon direkt; ways (out center): unter j['center']
+    final center = j['center'] as Map<String, dynamic>?;
+    final lat = (j['lat'] as num?)?.toDouble() ??
+        (center?['lat'] as num?)?.toDouble() ?? 0.0;
+    final lng = (j['lon'] as num?)?.toDouble() ??
+        (center?['lon'] as num?)?.toDouble() ?? 0.0;
     final tags = j['tags'] as Map<String, dynamic>? ?? {};
     final name = (tags['name'] as String?) ??
         (tags['operator'] as String?) ??
