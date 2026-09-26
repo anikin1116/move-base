@@ -54,6 +54,8 @@ class _TankstellenScreenState extends State<TankstellenScreen>
   Timer? _slowLoadTimer;
   bool _slowAvgLoading = false;
   Timer? _slowAvgTimer;
+  Future<void>? _overpassFuture;
+  bool _priceApiDown = false;
 
   @override
   void initState() {
@@ -95,6 +97,8 @@ class _TankstellenScreenState extends State<TankstellenScreen>
     _countryAvgPrices = {};
     _avgPriceLoading = false;
     _loadingTypes.clear();
+    _overpassFuture = null;
+    _priceApiDown = false;
     setState(() {
       _loading = true;
       _error = null;
@@ -184,23 +188,47 @@ class _TankstellenScreenState extends State<TankstellenScreen>
       return;
     }
     _loadingTypes.add(fuelType);
+    bool gotData = false;
     try {
-      final uri = Uri.parse(
-          'https://api.e-control.at/sprit/1.0/search/gas-stations/by-address'
+      // 1. WKO Spritpreisrechner (primär)
+      final wkoUri = Uri.parse(
+          'https://www.spritpreisrechner.at/ts/public/search/gas-stations/by-address'
           '?latitude=$_lat&longitude=$_lng&fuelType=$fuelType&includeClosed=false');
-      final resp = await http
-          .get(uri, headers: {'Accept': 'application/json'}).timeout(
-        const Duration(seconds: 10),
-      );
-      if (resp.statusCode == 200) {
-        final body = utf8.decode(resp.bodyBytes);
+      final wkoResp = await http
+          .get(wkoUri, headers: {'Accept': 'application/json'})
+          .timeout(const Duration(seconds: 10));
+      if (wkoResp.statusCode == 200) {
+        final body = utf8.decode(wkoResp.bodyBytes);
         final List<dynamic> raw = jsonDecode(body);
-        _cache[fuelType] =
-            raw.map((j) => _Station.fromJson(j, fuelType)).toList();
+        _cache[fuelType] = raw.map((j) => _Station.fromJson(j, fuelType)).toList();
+        gotData = true;
       }
     } catch (_) {}
-    _cache.putIfAbsent(fuelType, () => []);
+    if (!gotData) {
+      try {
+        // 2. e-control (sekundär)
+        final uri = Uri.parse(
+            'https://api.e-control.at/sprit/1.0/search/gas-stations/by-address'
+            '?latitude=$_lat&longitude=$_lng&fuelType=$fuelType&includeClosed=false');
+        final resp = await http
+            .get(uri, headers: {'Accept': 'application/json'})
+            .timeout(const Duration(seconds: 10));
+        if (resp.statusCode == 200) {
+          final body = utf8.decode(resp.bodyBytes);
+          final List<dynamic> raw = jsonDecode(body);
+          _cache[fuelType] = raw.map((j) => _Station.fromJson(j, fuelType)).toList();
+          gotData = true;
+        }
+      } catch (_) {}
+    }
     _loadingTypes.remove(fuelType);
+    if (!gotData) {
+      // 3. Overpass-Fallback (keine Preise)
+      if (mounted) setState(() => _priceApiDown = true);
+      await _loadFuelOverpass(fuelType);
+      return;
+    }
+    _cache.putIfAbsent(fuelType, () => []);
     if (mounted) setState(() {});
   }
 
@@ -244,9 +272,16 @@ class _TankstellenScreenState extends State<TankstellenScreen>
     for (final ft in _fuelTypes) {
       if (_cache.containsKey(ft)) { _cache[fuelType] = _cache[ft]!; if (mounted) setState(() {}); return; }
     }
-    if (_loadingTypes.contains('_overpass')) return;
-    _loadingTypes.add('_overpass');
+    _overpassFuture ??= _doLoadFuelOverpass();
+    await _overpassFuture;
+    _cache.putIfAbsent(fuelType, () {
+      for (final ft in _fuelTypes) { if (_cache.containsKey(ft)) return _cache[ft]!; }
+      return [];
+    });
+    if (mounted) setState(() {});
+  }
 
+  Future<void> _doLoadFuelOverpass() async {
     final encoded = Uri.encodeQueryComponent('[out:json];(node["amenity"="fuel"](around:15000,$_lat,$_lng);way["amenity"="fuel"](around:15000,$_lat,$_lng););out center;');
     final capturedLat = _lat!;
     final capturedLng = _lng!;
@@ -260,13 +295,9 @@ class _TankstellenScreenState extends State<TankstellenScreen>
       }
     }
 
-    if (!mounted || _lat != capturedLat || _lng != capturedLng) {
-      _loadingTypes.remove('_overpass');
-      return;
-    }
+    if (!mounted || _lat != capturedLat || _lng != capturedLng) return;
     final result = stations ?? <_Station>[];
     for (final ft in _fuelTypes) { _cache[ft] = result; }
-    _loadingTypes.remove('_overpass');
     if (mounted) setState(() {});
   }
 
@@ -804,6 +835,8 @@ class _TankstellenScreenState extends State<TankstellenScreen>
             onPressed: () {
               if (_usingSearch) {
                 _loadingTypes.clear();
+                _overpassFuture = null;
+                _priceApiDown = false;
                 setState(() { _cache.clear(); _evStations = null; _evLoading = false; });
                 Future.wait([..._fuelTypes.map(_loadFuel), _loadEv()]);
               } else {
@@ -927,6 +960,21 @@ class _TankstellenScreenState extends State<TankstellenScreen>
                           Expanded(child: Text(
                             'Preisdaten: www.tankerkoenig.de (CC BY 4.0)',
                             style: const TextStyle(fontSize: 11, color: Color(0xFF33691E)),
+                          )),
+                        ]),
+                      ),
+                    if (_priceApiDown && _tabCtrl.index < 3)
+                      Container(
+                        color: const Color(0xFFFFF3E0),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+                        child: Row(children: [
+                          const Icon(Icons.warning_amber_rounded, size: 14, color: Color(0xFFE65100)),
+                          const SizedBox(width: 6),
+                          Expanded(child: Text(
+                            Localizations.localeOf(context).languageCode == 'en'
+                                ? 'Prices currently unavailable – e-control.at server temporarily down. Showing station locations only.'
+                                : 'Preise derzeit nicht verfügbar – e-control.at Server vorübergehend nicht erreichbar. Nur Standorte werden angezeigt.',
+                            style: const TextStyle(fontSize: 11, color: Color(0xFFE65100)),
                           )),
                         ]),
                       ),
